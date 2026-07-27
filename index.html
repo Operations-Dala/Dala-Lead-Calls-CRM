@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DALA · Call Ops</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --black:#0B0B0C; --red:#C81D25; --red-dim:#8F1418; --red-glow:rgba(200,29,37,0.35);
+    --gray-900:#2A2A2E; --gray-700:#4A4A4F; --gray-500:#7A7A80; --gray-300:#B3B3B8; --gray-100:#E7E7E9;
+    --off-white:#F4F4F2; --white:#FFFFFF;
+    --font-display:'Oswald',sans-serif; --font-body:'Inter',sans-serif; --font-mono:'IBM Plex Mono',monospace;
+    --radius:3px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--off-white);color:var(--black);font-family:var(--font-body);line-height:1.45;padding-bottom:60px;}
+  a{color:inherit;}
+  ::selection{background:var(--red);color:var(--white);}
+
+  .topbar{background:var(--black);color:var(--off-white);position:sticky;top:0;z-index:50;border-bottom:3px solid var(--red);}
+  .topbar-inner{max-width:1320px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+  .brand{display:flex;align-items:baseline;gap:10px;}
+  .brand-mark{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing:1px;color:var(--white);}
+  .brand-mark span{color:var(--red);}
+  .brand-sub{font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--gray-300);text-transform:uppercase;border-left:1px solid var(--gray-700);padding-left:10px;}
+  .topbar-right{display:flex;align-items:center;gap:18px;}
+  .live-pill{display:flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:11px;letter-spacing:1.5px;color:var(--gray-100);text-transform:uppercase;}
+  .pulse{width:8px;height:8px;border-radius:50%;background:var(--red);box-shadow:0 0 0 0 var(--red-glow);animation:pulse 1.8s infinite;}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 var(--red-glow);}70%{box-shadow:0 0 0 8px rgba(200,29,37,0);}100%{box-shadow:0 0 0 0 rgba(200,29,37,0);}}
+  .clock{font-family:var(--font-mono);font-size:12px;color:var(--gray-300);}
+
+  .nav{background:var(--gray-900);border-bottom:1px solid #000;}
+  .nav-inner{max-width:1320px;margin:0 auto;padding:0 24px;display:flex;gap:2px;}
+  .nav-btn{
+    background:transparent;border:none;color:var(--gray-300);
+    font-family:var(--font-mono);font-size:12px;letter-spacing:1px;text-transform:uppercase;
+    padding:12px 18px;cursor:pointer;border-bottom:3px solid transparent;
+  }
+  .nav-btn:hover{color:var(--white);}
+  .nav-btn.active{color:var(--white);border-bottom-color:var(--red);background:rgba(255,255,255,.04);}
+
+  .wrap{max-width:1320px;margin:0 auto;padding:0 24px;}
+  section{margin-top:34px;}
+  .section-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;}
+  .section-title{font-family:var(--font-display);font-weight:600;font-size:15px;letter-spacing:1.5px;text-transform:uppercase;}
+  .section-title .count{color:var(--red);}
+  .section-note{font-family:var(--font-mono);font-size:11px;color:var(--gray-500);}
+
+  .tally-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;background:var(--gray-900);border-radius:var(--radius);overflow:hidden;}
+  .tally-strip.two-up{grid-template-columns:repeat(2,1fr);}
+  .tally-card{background:var(--black);color:var(--off-white);padding:18px 16px;position:relative;}
+  .tally-card.accent{background:var(--red);}
+  .tally-label{font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gray-300);margin-bottom:8px;display:block;}
+  .tally-card.accent .tally-label{color:rgba(255,255,255,.8);}
+  .tally-num{font-family:var(--font-mono);font-weight:600;font-size:36px;color:var(--white);letter-spacing:1px;font-variant-numeric:tabular-nums;}
+  .tally-sub{font-size:11px;color:var(--gray-500);margin-top:4px;}
+  .tally-card.accent .tally-sub{color:rgba(255,255,255,.75);}
+
+  .grid-main{display:grid;grid-template-columns:1.5fr 1fr;gap:24px;align-items:start;}
+  @media (max-width:900px){.grid-main{grid-template-columns:1fr;}}
+
+  .tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;}
+  .tab-btn{font-family:var(--font-mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;background:transparent;border:1px solid var(--gray-700);color:var(--gray-700);padding:7px 12px;border-radius:var(--radius);cursor:pointer;}
+  .tab-btn.active{background:var(--black);color:var(--white);border-color:var(--black);}
+  .tab-btn.active.urgent{background:var(--red);border-color:var(--red);}
+
+  .queue-list{display:flex;flex-direction:column;gap:8px;}
+  .queue-item{background:var(--white);border:1px solid var(--gray-100);border-left:4px solid var(--gray-500);border-radius:var(--radius);padding:12px 14px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;}
+  .queue-item.overdue{border-left-color:var(--red);}
+  .queue-item.today{border-left-color:var(--black);}
+  .queue-item.tomorrow{border-left-color:var(--gray-500);}
+  .qi-main{flex:1;min-width:200px;}
+  .qi-company{font-family:var(--font-display);font-weight:600;font-size:15px;}
+  .qi-meta{font-family:var(--font-mono);font-size:11px;color:var(--gray-500);margin-top:3px;}
+  .qi-note{font-size:12.5px;color:var(--gray-700);margin-top:6px;}
+  .qi-tag{font-family:var(--font-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:3px 7px;border-radius:2px;white-space:nowrap;}
+  .qi-tag.overdue{background:var(--red);color:var(--white);}
+  .qi-tag.today{background:var(--black);color:var(--white);}
+  .qi-tag.tomorrow{background:var(--gray-100);color:var(--gray-700);}
+  .qi-tag.rep{background:var(--gray-100);color:var(--gray-700);}
+  .qi-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+  .qi-btn{font-family:var(--font-body);font-size:12px;font-weight:600;background:var(--off-white);border:1px solid var(--gray-300);color:var(--black);padding:6px 10px;border-radius:var(--radius);cursor:pointer;}
+  .qi-btn:hover{border-color:var(--black);}
+  .qi-btn.call{color:var(--red);border-color:var(--red);}
+  .empty-note{font-family:var(--font-mono);font-size:12px;color:var(--gray-500);padding:16px;border:1px dashed var(--gray-300);border-radius:var(--radius);}
+
+  .panel{background:var(--white);border:1px solid var(--gray-100);border-radius:var(--radius);padding:18px;position:sticky;top:112px;}
+  .panel-title{font-family:var(--font-display);font-weight:600;font-size:14px;letter-spacing:1px;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+  .panel-title .dot{width:7px;height:7px;background:var(--red);border-radius:50%;}
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-family:var(--font-mono);font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--gray-500);margin-bottom:5px;}
+  .field input,.field select,.field textarea{width:100%;font-family:var(--font-body);font-size:13.5px;border:1px solid var(--gray-300);border-radius:var(--radius);padding:8px 10px;background:var(--off-white);color:var(--black);}
+  .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--red);background:var(--white);}
+  .field textarea{resize:vertical;min-height:56px;}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .submit-btn{width:100%;background:var(--black);color:var(--white);border:none;font-family:var(--font-body);font-weight:700;font-size:13.5px;letter-spacing:.4px;padding:11px;border-radius:var(--radius);cursor:pointer;margin-top:4px;transition:background .15s ease;}
+  .submit-btn:hover{background:var(--red);}
+  .form-hint{font-family:var(--font-mono);font-size:10.5px;color:var(--gray-500);margin-top:8px;}
+
+  .filter-bar{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+  .filter-bar input,.filter-bar select{font-family:var(--font-body);font-size:13px;border:1px solid var(--gray-300);border-radius:var(--radius);padding:8px 10px;background:var(--white);}
+  .filter-bar input{flex:1;min-width:180px;}
+  table{width:100%;border-collapse:collapse;background:var(--white);}
+  thead th{text-align:left;font-family:var(--font-mono);font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--gray-500);border-bottom:2px solid var(--black);padding:9px 10px;}
+  tbody td{padding:10px;border-bottom:1px solid var(--gray-100);font-size:13px;vertical-align:top;}
+  tbody tr:hover{background:var(--off-white);}
+  .status-chip{font-family:var(--font-mono);font-size:10px;letter-spacing:.5px;padding:3px 7px;border-radius:2px;background:var(--gray-100);color:var(--gray-700);white-space:nowrap;display:inline-block;}
+  .status-chip.hot{background:var(--red);color:var(--white);}
+  .status-chip.warm{background:var(--black);color:var(--white);}
+  .status-chip.won{background:#1F7A3D;color:var(--white);}
+  .status-chip.declined,.status-chip.cold{background:var(--off-white);color:var(--gray-500);border:1px solid var(--gray-300);}
+  .del-btn{background:none;border:none;color:var(--gray-500);cursor:pointer;font-size:15px;}
+  .del-btn:hover{color:var(--red);}
+
+  .pipeline{display:flex;flex-direction:column;gap:8px;}
+  .pipe-row{display:grid;grid-template-columns:170px 1fr 34px;align-items:center;gap:10px;}
+  .pipe-label{font-family:var(--font-mono);font-size:11px;color:var(--gray-700);}
+  .pipe-track{background:var(--gray-100);height:10px;border-radius:5px;overflow:hidden;}
+  .pipe-fill{height:100%;background:var(--red);border-radius:5px;}
+  .pipe-count{font-family:var(--font-mono);font-size:12px;text-align:right;}
+
+  .rep-compare{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media (max-width:700px){.rep-compare{grid-template-columns:1fr;}}
+  .rep-card{background:var(--white);border:1px solid var(--gray-100);border-radius:var(--radius);padding:16px;}
+  .rep-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+  .rep-card-name{font-family:var(--font-display);font-weight:600;font-size:16px;letter-spacing:.5px;}
+  .rep-card-stats{display:flex;gap:18px;}
+  .rep-card-stat b{display:block;font-family:var(--font-mono);font-size:22px;}
+  .rep-card-stat span{font-family:var(--font-mono);font-size:10px;color:var(--gray-500);text-transform:uppercase;letter-spacing:.5px;}
+  .go-btn{font-family:var(--font-mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;background:var(--black);color:var(--white);border:none;padding:7px 12px;border-radius:var(--radius);cursor:pointer;}
+  .go-btn:hover{background:var(--red);}
+
+  .contact-card{background:var(--white);border:1px solid var(--gray-100);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;}
+  .cc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;}
+  .cc-name{font-family:var(--font-display);font-weight:600;font-size:15px;}
+  .cc-meta{font-family:var(--font-mono);font-size:11px;color:var(--gray-500);margin-top:3px;}
+  .cc-note{font-size:12.5px;color:var(--gray-700);margin-top:8px;}
+  .cc-owner{display:flex;gap:6px;}
+  .owner-chip{font-family:var(--font-mono);font-size:10px;letter-spacing:.5px;padding:3px 7px;border-radius:2px;text-transform:uppercase;}
+  .owner-chip.yes{background:var(--black);color:var(--white);}
+  .owner-chip.no{background:var(--off-white);color:var(--gray-300);border:1px solid var(--gray-100);}
+
+  footer{max-width:1320px;margin:50px auto 0;padding:16px 24px;font-family:var(--font-mono);font-size:10.5px;color:var(--gray-500);border-top:1px solid var(--gray-100);}
+  .view{display:none;}
+  .view.active{display:block;}
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-mark">DALA<span>·</span></div>
+        <div class="brand-sub">Call Ops</div>
+      </div>
+      <div class="topbar-right">
+        <div class="live-pill"><span class="pulse"></span>Live</div>
+        <div class="clock" id="clock">—</div>
+      </div>
+    </div>
+    <div class="nav">
+      <div class="nav-inner">
+        <button class="nav-btn active" data-view="overview" onclick="switchView('overview')">Team Overview</button>
+        <button class="nav-btn" data-view="MW" onclick="switchView('MW')">MW</button>
+        <button class="nav-btn" data-view="JZRZ" onclick="switchView('JZRZ')">JZRZ</button>
+        <button class="nav-btn" data-view="contacts" onclick="switchView('contacts')">Contacts</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <!-- ===================== TEAM OVERVIEW ===================== -->
+    <div class="view active" id="view-overview">
+      <section>
+        <div class="tally-strip">
+          <div class="tally-card accent"><span class="tally-label">Calls today</span><div class="tally-num" id="ov-statToday">0</div><div class="tally-sub">both reps</div></div>
+          <div class="tally-card"><span class="tally-label">This week</span><div class="tally-num" id="ov-statWeek">0</div><div class="tally-sub">last 7 days</div></div>
+          <div class="tally-card"><span class="tally-label">Total logged</span><div class="tally-num" id="ov-statTotal">0</div><div class="tally-sub">all time</div></div>
+          <div class="tally-card"><span class="tally-label">Overdue</span><div class="tally-num" id="ov-statOverdue">0</div><div class="tally-sub">needs action now</div></div>
+          <div class="tally-card"><span class="tally-label">Due today</span><div class="tally-num" id="ov-statDueToday">0</div><div class="tally-sub"><span id="ov-statDueTomorrow">0</span> due tomorrow</div></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head"><div class="section-title">By rep</div></div>
+        <div class="rep-compare">
+          <div class="rep-card">
+            <div class="rep-card-head"><div class="rep-card-name">MW</div><button class="go-btn" onclick="switchView('MW')">Open dashboard →</button></div>
+            <div class="rep-card-stats">
+              <div class="rep-card-stat"><b id="mw-mini-today">0</b><span>Today</span></div>
+              <div class="rep-card-stat"><b id="mw-mini-total">0</b><span>Total</span></div>
+              <div class="rep-card-stat"><b id="mw-mini-overdue">0</b><span>Overdue</span></div>
+            </div>
+          </div>
+          <div class="rep-card">
+            <div class="rep-card-head"><div class="rep-card-name">JZRZ</div><button class="go-btn" onclick="switchView('JZRZ')">Open dashboard →</button></div>
+            <div class="rep-card-stats">
+              <div class="rep-card-stat"><b id="jz-mini-today">0</b><span>Today</span></div>
+              <div class="rep-card-stat"><b id="jz-mini-total">0</b><span>Total</span></div>
+              <div class="rep-card-stat"><b id="jz-mini-overdue">0</b><span>Overdue</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head"><div class="section-title">Combined action queue <span class="count" id="ov-queueCount"></span></div><div class="section-note">overdue, across both reps</div></div>
+        <div class="queue-list" id="ov-queueList"></div>
+      </section>
+
+      <section>
+        <div class="section-head"><div class="section-title">Combined pipeline</div><div class="section-note" id="ov-pipelineTotal"></div></div>
+        <div class="pipeline" id="ov-pipeline"></div>
+      </section>
+    </div>
+
+    <!-- ===================== MW / JZRZ (templated) ===================== -->
+    <div class="view" id="view-MW"></div>
+    <div class="view" id="view-JZRZ"></div>
+
+    <!-- ===================== CONTACTS ===================== -->
+    <div class="view" id="view-contacts">
+      <section style="margin-top:24px;">
+        <div class="section-head"><div class="section-title">Master prospect list <span class="count" id="ct-count"></span></div><div class="section-note">shared reference — Sheet1</div></div>
+        <div class="filter-bar">
+          <input id="ct-search" placeholder="Search company or category…" oninput="renderContacts()">
+        </div>
+        <div id="ct-list"></div>
+      </section>
+    </div>
+
+  </div>
+
+  <footer>
+    DALA CALL OPS — data is stored privately to your account and persists between visits. Built to plug into a backend later: swap the storage calls in the script for your own API.
+  </footer>
+
+<script>
+/* ============================================================
+   SEED DATA
+   ============================================================ */
+const SEED_PROSPECTS = [
+  {company:"ReelFruit", category:"Healthy Snacks / Dried Fruit", phone:"08101416972", email:"info@reelfruit.com", note:"Live conversation — follow up to onboard."},
+  {company:"Tiger Foods Limited", category:"Spices / Seasonings", phone:"09030006400", email:"info@tigerfoods.com", note:"Proposal sent — shared national sales manager contact."},
+  {company:"Beloxxi Industries Limited", category:"Crackers / Biscuits", phone:"08070500158", email:"info@beloxxigroup.com", note:"Contacted by email — need updated number."},
+  {company:"Fastizers Food and Confectionery", category:"Cookies & Snacks", phone:"+2347042222233", email:"sales@fastizers.com", note:"Personal connection; avoiding calls and doesn't respond to missed calls."},
+  {company:"Ayoola Foods", category:"Poundo Yam & Flours", phone:"08023157938", email:"info@ayoolafoodsnig.com", note:"Someone in-house already handling this."},
+  {company:"Vital Products PLC", category:"Fruit Juices & Tomato Paste", phone:"08188950380", email:"info@vitalproductsplc.com", note:"Asked us to come with a physical proposal."},
+  {company:"Nutri-Milk (Cansum Foods / CWAY Group)", category:"Dairy / Fruit Blends", phone:"09033031", email:"cway_nig@cway.com", note:"Contacted by email — need updated number."},
+  {company:"Habib Yogurt", category:"Fresh Yogurt / Fura", phone:"08033708154", email:"info@habibyoghurt.com", note:"Contacted by email — need updated number."},
+  {company:"L&Z Integrated Farms", category:"Natural Fresh Yogurt", phone:"07058894440", email:"info@lzfarms.com", note:"Contacted by email — need updated number."},
+  {company:"Farm Fresh (Integrated Produce City)", category:"Probiotic Yogurt", phone:"09062447839", email:"sales@farmfresh.com.ng", note:"Not picking up."},
+  {company:"Hans and Rene", category:"Premium Gelato", phone:"08172007131", email:"hello@hansandrene.com", note:"New lead — not yet contacted."},
+  {company:"FreshYo (Mikano Foods Division)", category:"Drinkable Yogurt", phone:"08107408283", email:"info@mikano-intl.com", note:"Not picking up."},
+  {company:"Nutri-Yo (Cansum Foods)", category:"Drinkable Yogurt", phone:"08023157522", email:"sales@nutriyo.com.ng", note:"Contacted by email — need updated number."},
+  {company:"SuperYogo (Fan Milk PLC)", category:"Drinkable Yogurt", phone:"", email:"", note:"New lead — not yet contacted."},
+];
+
+const SEED_CALLS_MW = [
+  {company:"Fauzziyah's Honey Ltd", contact:"", phone:"09169167897", status:"Declined", lastCallDate:"2026-05-11", note:"₦10m monthly revenue; already in Home Affairs, Old English and Ebeano. Discussions ended — they want to keep operating at current scale, not ready to adopt another model.", productInfo:""},
+  {company:"El Gazelle Kilishi", contact:"Osato", phone:"09021669852", status:"Cold", lastCallDate:"2026-05-21", note:"Introduced through Goke. May have capacity constraints. Already in Justrite, Jendol. Interested in Market Square, SPAR. Based in Osun, ready for in-store activations. ₦450k warehousing/subscription, 5% delivery fulfilment, 5% payments during trial, 10% post-trial.", productInfo:"80g, 50/carton, ₦2,377/unit"},
+  {company:"Green & Grill House", contact:"Madey", phone:"08167654000", status:"Warm", lastCallDate:"2026-05-21", note:"Payment and working-capital challenges; stores call them directly when supply is needed. Not interested in logistics at current scale — check back in July on their new facility.", productInfo:""},
+  {company:"Chime Foods Limited", contact:"Gerad", phone:"08066875924", status:"Warm", lastCallDate:"2026-05-04", note:"₦1m monthly, ready to invest. Physical meeting scheduled for 7 May 2026. (Logged by JZRZ.)", productInfo:""},
+  {company:"Limlim Foods", contact:"Adeola Balogun", phone:"08099972019", status:"Hot", lastCallDate:"2026-05-21", note:"Good conversation, clear fit — then went quiet after SLA sent. Second check-in today; give it a couple more days.", productInfo:""},
+  {company:"Green Baskit", contact:"George", phone:"08035095589", status:"", lastCallDate:"2026-05-05", note:"Calls not picked, messages sent.", productInfo:""},
+  {company:"Eve's Organic", contact:"Evelyn Okoloh", phone:"09071142555", status:"", lastCallDate:"2026-05-11", note:"Calls not picked, messages sent. May be too small/niche to scale.", productInfo:""},
+  {company:"ovis yogurt", contact:"Elohor Adeniyi", phone:"08184871079", status:"Declined", lastCallDate:"2026-05-12", note:"₦600k subscription, ₦600k for 6 pallets, 10% logistics, 10% payment guarantee. She'll follow up today.", productInfo:""},
+  {company:"Spectra", contact:"Duro", phone:"08033248605", status:"Warm", lastCallDate:"2026-05-21", note:"Good catch-up with MD. Introduced the upcoming NASIMA initiative — may invite us to present. Physical meeting planned for the 22nd or 25th.", productInfo:""},
+  {company:"Fastizers", contact:"", phone:"08177010882", status:"Cold", lastCallDate:"2026-06-01", note:"Known contact, offering audit/merchandising/gaps services. Third call not picked; keep trying.", productInfo:""},
+  {company:"Easy Sauces", contact:"Jide", phone:"07034328483", status:"Warm", lastCallDate:"2026-06-01", note:"Good early conversation, then quiet after SLA sent. Called to re-engage — call again by 6:30.", productInfo:""},
+  {company:"2603 Foods (Maude Stores)", contact:"", phone:"07039081523", status:"Cold", lastCallDate:"2026-05-22", note:"Ready-to-use flours. Called, not picked. Asked for a proposal but didn't sound interested.", productInfo:""},
+  {company:"Gratia chin chin", contact:"Yewande", phone:"08033251932", status:"Warm", lastCallDate:"2026-05-22", note:"Want to extend reach but work mostly through distributors. Could start with GAPS/orders — merchandising only, no fulfilment/collection to kick off.", productInfo:""},
+  {company:"Toke cosmetics", contact:"", phone:"08060383377", status:"", lastCallDate:"2026-05-22", note:"Didn't pick up. Info sent via WhatsApp — follow up Monday.", productInfo:""},
+  {company:"Kandys Food", contact:"", phone:"08033333333", status:"", lastCallDate:"2026-05-22", note:"Didn't pick up. Info sent via WhatsApp — follow up Monday.", productInfo:""},
+  {company:"Sweet Kiwi", contact:"Ehi", phone:"14697344833", status:"Warm", lastCallDate:"2026-05-29", note:"Introduced by Goke. Wants to launch a premium Greek yogurt brand — L&Z is closest competitor. 4-8 weeks to launch.", productInfo:""},
+  {company:"AACE", contact:"Gloria", phone:"08052797307", status:"Cold", lastCallDate:"2026-06-01", note:"", productInfo:""},
+  {company:"Iceberg Ice Cream", contact:"", phone:"08122297666", status:"Cold", lastCallDate:"2026-06-04", note:"Attendant picked up, said she'd inform her boss. Follow up on the 5th–6th if no callback.", productInfo:""},
+  {company:"PHAN Blues Frozen Foods", contact:"", phone:"08035643539", status:"", lastCallDate:"2026-06-04", note:"Didn't pick up — try again tomorrow.", productInfo:""},
+  {company:"Tiger Foods", contact:"", phone:"09030006400", status:"Warm", lastCallDate:"2026-07-07", note:"Spoke with admin — she'd send the national sales manager's number. Followed up on the 9th; got an email but not Festus' number.", productInfo:""},
+  {company:"Ayoola Foods", contact:"", phone:"08023157938", status:"Cold", lastCallDate:"2026-07-09", note:"They have someone in-house already doing what we're proposing.", productInfo:""},
+  {company:"Vital Products", contact:"", phone:"08188950380", status:"Cold", lastCallDate:"2026-07-07", note:"Asked us to drop a physical proposal.", productInfo:""},
+  {company:"Nasco", contact:"", phone:"08057747777", status:"Warm", lastCallDate:"2026-07-07", note:"Asked to send an email — sent, expecting a response tomorrow.", productInfo:""},
+  {company:"Sosa Fruit drinks", contact:"", phone:"09154209806", status:"", lastCallDate:"2026-07-09", note:"Not picked.", productInfo:""},
+];
+
+const SEED_CALLS_JZRZ = [
+  {company:"Kudara Foods", contact:"", phone:"08034254040", status:"Warm", lastCallDate:"2026-05-25", note:"Ready to go back to invest in online marketing. Concluded on sending the SLA — a productive commitment.", productInfo:"Tigernut, Zobo", supermarkets:15},
+];
+
+const REPS = ['MW','JZRZ'];
+let prospects = [];
+let callsByRep = {MW:[], JZRZ:[]};
+let queueTabByRep = {MW:'overdue', JZRZ:'overdue'};
+
+const PKEY = 'prospects-list';
+const CKEY = {MW:'calls-mw', JZRZ:'calls-jzrz'};
+
+/* ---------- storage ---------- */
+async function loadData(){
+  try{ const p = await window.storage.get(PKEY); prospects = p ? JSON.parse(p.value) : null; }catch(e){ prospects = null; }
+  if(!prospects){ prospects = SEED_PROSPECTS.map((p,i)=>({id:'p'+(i+1), ...p})); await saveProspects(); }
+
+  for(const rep of REPS){
+    try{
+      const c = await window.storage.get(CKEY[rep]);
+      callsByRep[rep] = c ? JSON.parse(c.value) : null;
+    }catch(e){ callsByRep[rep] = null; }
+    if(!callsByRep[rep]){
+      const seed = rep==='MW' ? SEED_CALLS_MW : SEED_CALLS_JZRZ;
+      callsByRep[rep] = seed.map((c,i)=>({id:rep+'-c'+(i+1), rep, followUpDate:null, createdAt: Date.now()-(seed.length-i)*1000, ...c}));
+      await saveCalls(rep);
+    }
+  }
+}
+async function saveProspects(){ try{ await window.storage.set(PKEY, JSON.stringify(prospects)); }catch(e){console.error(e);} }
+async function saveCalls(rep){ try{ await window.storage.set(CKEY[rep], JSON.stringify(callsByRep[rep])); }catch(e){console.error(e);} }
+
+/* ---------- date helpers ---------- */
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function daysFromToday(n){ const d=new Date(); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+function fmtDate(iso){ if(!iso) return '—'; const d=new Date(iso+'T00:00:00'); return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }
+function daysDiff(iso){ const d1=new Date(todayStr()+'T00:00:00'); const d2=new Date(iso+'T00:00:00'); return Math.round((d2-d1)/86400000); }
+function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
+
+function tickClock(){
+  const now=new Date();
+  document.getElementById('clock').textContent = now.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'}) + '  ' + now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+}
+
+/* ---------- view switching ---------- */
+function switchView(view){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+view).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===view));
+  if(view==='overview') renderOverview();
+  if(view==='MW' || view==='JZRZ') renderRepDashboard(view);
+  if(view==='contacts') renderContacts();
+}
+
+/* ============================================================
+   REP DASHBOARD TEMPLATE (used for both MW and JZRZ)
+   ============================================================ */
+function repTemplate(rep){
+  return `
+    <section style="margin-top:24px;">
+      <div class="tally-strip">
+        <div class="tally-card accent"><span class="tally-label">Calls today</span><div class="tally-num" id="${rep}-statToday">0</div><div class="tally-sub">tap counter as you dial</div></div>
+        <div class="tally-card"><span class="tally-label">This week</span><div class="tally-num" id="${rep}-statWeek">0</div><div class="tally-sub">last 7 days</div></div>
+        <div class="tally-card"><span class="tally-label">Total logged</span><div class="tally-num" id="${rep}-statTotal">0</div><div class="tally-sub">all time</div></div>
+        <div class="tally-card"><span class="tally-label">Overdue</span><div class="tally-num" id="${rep}-statOverdue">0</div><div class="tally-sub">needs action now</div></div>
+        <div class="tally-card"><span class="tally-label">Due today</span><div class="tally-num" id="${rep}-statDueToday">0</div><div class="tally-sub"><span id="${rep}-statDueTomorrow">0</span> due tomorrow</div></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="grid-main">
+        <div>
+          <div class="section-head">
+            <div class="section-title">${rep}'s action queue <span class="count" id="${rep}-queueCount"></span></div>
+            <div class="section-note">sorted by urgency</div>
+          </div>
+          <div class="tabs">
+            <button class="tab-btn active urgent" data-queue="overdue" onclick="setQueueTab('${rep}','overdue')">Overdue</button>
+            <button class="tab-btn" data-queue="today" onclick="setQueueTab('${rep}','today')">Due today</button>
+            <button class="tab-btn" data-queue="tomorrow" onclick="setQueueTab('${rep}','tomorrow')">Due tomorrow</button>
+            <button class="tab-btn" data-queue="new" onclick="setQueueTab('${rep}','new')">Not yet called</button>
+          </div>
+          <div class="queue-list" id="${rep}-queueList"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title"><span class="dot"></span>Log a call — ${rep}</div>
+          <form id="${rep}-callForm">
+            <div class="field">
+              <label>Company</label>
+              <input list="${rep}-companyList" id="${rep}-fCompany" placeholder="Start typing or pick a prospect" required>
+              <datalist id="${rep}-companyList"></datalist>
+            </div>
+            <div class="field-row">
+              <div class="field"><label>Contact person</label><input id="${rep}-fContact" placeholder="Optional"></div>
+              <div class="field"><label>Phone number</label><input id="${rep}-fPhone" placeholder="Optional"></div>
+            </div>
+            <div class="field">
+              <label>Status</label>
+              <select id="${rep}-fStatus" required>
+                <option value="">Select status…</option>
+                <option>Cold</option><option>Warm</option><option>Hot</option><option>Declined</option><option>Won</option>
+              </select>
+            </div>
+            <div class="field"><label>Notes</label><textarea id="${rep}-fNotes" placeholder="What was said, next step, who to ask for…"></textarea></div>
+            <div class="field-row">
+              <div class="field"><label>Products discussed</label><input id="${rep}-fProduct" placeholder="Optional"></div>
+              <div class="field"><label>Supermarkets reached</label><input type="number" id="${rep}-fSupermarkets" placeholder="Optional"></div>
+            </div>
+            <div class="field"><label>Next follow-up date</label><input type="date" id="${rep}-fFollowUp"></div>
+            <button type="submit" class="submit-btn">Log call</button>
+            <div class="form-hint">Saving updates this company's status and drops it into the action queue automatically.</div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head"><div class="section-title">${rep}'s call history <span class="count" id="${rep}-historyCount"></span></div></div>
+      <div class="filter-bar">
+        <input id="${rep}-searchBox" placeholder="Search company, contact, or notes…" oninput="renderHistory('${rep}')">
+        <select id="${rep}-statusFilter" onchange="renderHistory('${rep}')">
+          <option value="">All statuses</option>
+          <option>Cold</option><option>Warm</option><option>Hot</option><option>Declined</option><option>Won</option>
+        </select>
+        <select id="${rep}-rangeFilter" onchange="renderHistory('${rep}')">
+          <option value="all">All time</option><option value="today">Today</option><option value="week">This week</option><option value="month">This month</option>
+        </select>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>Date</th><th>Company</th><th>Contact</th><th>Status</th><th>Notes</th><th>Next follow-up</th><th></th></tr></thead>
+          <tbody id="${rep}-historyBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head"><div class="section-title">${rep}'s pipeline</div><div class="section-note" id="${rep}-pipelineTotal"></div></div>
+      <div class="pipeline" id="${rep}-pipeline"></div>
+    </section>
+  `;
+}
+
+function initRepViews(){
+  for(const rep of REPS){
+    document.getElementById('view-'+rep).innerHTML = repTemplate(rep);
+    document.getElementById(rep+'-callForm').addEventListener('submit', (e)=>handleSubmit(e, rep));
+  }
+}
+
+/* ---------- rep stats ---------- */
+function repStats(rep){
+  const calls = callsByRep[rep];
+  const t = todayStr(); const weekAgo = daysFromToday(-6);
+  const todayCalls = calls.filter(c=>c.lastCallDate===t || c.createdDate===t).length;
+  const weekCalls = calls.filter(c=>c.lastCallDate>=weekAgo && c.lastCallDate<=t).length;
+  const overdue = latestPerCompany(calls).filter(c=>c.followUpDate && c.followUpDate<t);
+  const dueToday = latestPerCompany(calls).filter(c=>c.followUpDate===t);
+  const dueTomorrow = latestPerCompany(calls).filter(c=>c.followUpDate===daysFromToday(1));
+  return {todayCalls, weekCalls, total: calls.length, overdue, dueToday, dueTomorrow};
+}
+
+function latestPerCompany(calls){
+  const map = {};
+  [...calls].sort((a,b)=> new Date(a.lastCallDate||0) - new Date(b.lastCallDate||0)).forEach(c=>{
+    map[c.company.toLowerCase()] = c;
+  });
+  return Object.values(map);
+}
+
+function renderRepStatsDOM(rep){
+  const s = repStats(rep);
+  document.getElementById(rep+'-statToday').textContent = s.todayCalls;
+  document.getElementById(rep+'-statWeek').textContent = s.weekCalls;
+  document.getElementById(rep+'-statTotal').textContent = s.total;
+  document.getElementById(rep+'-statOverdue').textContent = s.overdue.length;
+  document.getElementById(rep+'-statDueToday').textContent = s.dueToday.length;
+  document.getElementById(rep+'-statDueTomorrow').textContent = s.dueTomorrow.length;
+}
+
+/* ---------- rep action queue ---------- */
+function setQueueTab(rep, tab){
+  queueTabByRep[rep] = tab;
+  const container = document.getElementById('view-'+rep);
+  container.querySelectorAll('.tab-btn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.queue===tab);
+    b.classList.toggle('urgent', b.dataset.queue==='overdue' && tab==='overdue');
+  });
+  renderQueue(rep);
+}
+
+function renderQueue(rep){
+  const tab = queueTabByRep[rep];
+  const t = todayStr(); const tmrw = daysFromToday(1);
+  const latest = latestPerCompany(callsByRep[rep]);
+  let list = [];
+  if(tab==='overdue') list = latest.filter(c=>c.followUpDate && c.followUpDate<t).sort((a,b)=>a.followUpDate.localeCompare(b.followUpDate));
+  else if(tab==='today') list = latest.filter(c=>c.followUpDate===t);
+  else if(tab==='tomorrow') list = latest.filter(c=>c.followUpDate===tmrw);
+  else if(tab==='new'){
+    const calledCompanies = new Set(latest.map(c=>c.company.toLowerCase()));
+    list = prospects.filter(p=>!calledCompanies.has(p.company.toLowerCase()));
+  }
+
+  document.getElementById(rep+'-queueCount').textContent = list.length ? `(${list.length})` : '';
+  const box = document.getElementById(rep+'-queueList');
+  if(list.length===0){
+    const msgs = {overdue:"Nothing overdue. Clean slate.", today:"No follow-ups due today.", tomorrow:"Nothing due tomorrow yet.", new:"Every prospect on the master list has been called at least once."};
+    box.innerHTML = `<div class="empty-note">${msgs[tab]}</div>`;
+    return;
+  }
+  box.innerHTML = list.map(c=>{
+    let cls='', tag='';
+    if(tab==='overdue'){ const d=Math.abs(daysDiff(c.followUpDate)); cls='overdue'; tag=`<span class="qi-tag overdue">${d} day${d===1?'':'s'} overdue</span>`; }
+    else if(tab==='today'){ cls='today'; tag=`<span class="qi-tag today">Due today</span>`; }
+    else if(tab==='tomorrow'){ cls='tomorrow'; tag=`<span class="qi-tag tomorrow">Due tomorrow</span>`; }
+    else { cls='tomorrow'; tag=`<span class="qi-tag tomorrow">Not yet called</span>`; }
+    const phoneRaw = (c.phone||'').replace(/[^0-9+]/g,'');
+    return `
+    <div class="queue-item ${cls}">
+      <div class="qi-main">
+        <div class="qi-company">${escapeHtml(c.company)}</div>
+        <div class="qi-meta">${escapeHtml(c.category||'')}${c.phone?(' · '+escapeHtml(c.phone)):''}</div>
+        ${c.note?`<div class="qi-note">${escapeHtml(c.note)}</div>`:''}
+      </div>
+      <div class="qi-actions">
+        ${tag}
+        ${phoneRaw?`<a class="qi-btn call" href="tel:${phoneRaw}">Call</a>`:''}
+        <button class="qi-btn" onclick="quickLog('${rep}','${escapeAttr(c.company)}','${escapeAttr(c.phone||'')}')">Log outcome</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function quickLog(rep, company, phone){
+  document.getElementById(rep+'-fCompany').value = company;
+  if(phone) document.getElementById(rep+'-fPhone').value = phone;
+  document.getElementById(rep+'-fCompany').scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+/* ---------- rep history ---------- */
+function statusChipClass(status){
+  if(!status) return '';
+  const s = status.toLowerCase();
+  if(s==='hot') return 'hot';
+  if(s==='warm') return 'warm';
+  if(s==='won') return 'won';
+  if(s==='declined') return 'declined';
+  if(s==='cold') return 'cold';
+  return '';
+}
+
+function renderHistory(rep){
+  const search = document.getElementById(rep+'-searchBox').value.toLowerCase();
+  const statusF = document.getElementById(rep+'-statusFilter').value;
+  const range = document.getElementById(rep+'-rangeFilter').value;
+  const t = todayStr(); const weekAgo = daysFromToday(-6); const monthAgo = daysFromToday(-29);
+
+  let rows = [...callsByRep[rep]].sort((a,b)=> (b.createdAt||0) - (a.createdAt||0));
+  rows = rows.filter(c=>{
+    if(search){ const hay=(c.company+' '+(c.contact||'')+' '+(c.note||'')).toLowerCase(); if(!hay.includes(search)) return false; }
+    if(statusF && c.status!==statusF) return false;
+    if(range==='today' && c.lastCallDate!==t) return false;
+    if(range==='week' && !(c.lastCallDate>=weekAgo && c.lastCallDate<=t)) return false;
+    if(range==='month' && !(c.lastCallDate>=monthAgo && c.lastCallDate<=t)) return false;
+    return true;
+  });
+
+  document.getElementById(rep+'-historyCount').textContent = `(${rows.length})`;
+  const body = document.getElementById(rep+'-historyBody');
+  if(rows.length===0){ body.innerHTML = `<tr><td colspan="7" style="color:var(--gray-500);font-family:var(--font-mono);font-size:12px;">No calls match this filter yet.</td></tr>`; return; }
+
+  body.innerHTML = rows.map(c=>`
+    <tr>
+      <td style="font-family:var(--font-mono);white-space:nowrap;">${fmtDate(c.lastCallDate)}</td>
+      <td><strong>${escapeHtml(c.company)}</strong></td>
+      <td>${escapeHtml(c.contact||'—')}</td>
+      <td>${c.status?`<span class="status-chip ${statusChipClass(c.status)}">${escapeHtml(c.status)}</span>`:'<span class="status-chip">—</span>'}</td>
+      <td style="max-width:280px;">${escapeHtml(c.note||'—')}</td>
+      <td style="font-family:var(--font-mono);white-space:nowrap;">${c.followUpDate?fmtDate(c.followUpDate):'—'}</td>
+      <td><button class="del-btn" title="Delete entry" onclick="deleteCall('${rep}','${c.id}')">✕</button></td>
+    </tr>
+  `).join('');
+}
+
+async function deleteCall(rep, id){
+  callsByRep[rep] = callsByRep[rep].filter(c=>c.id!==id);
+  await saveCalls(rep);
+  renderRepDashboard(rep);
+}
+
+/* ---------- rep pipeline ---------- */
+function renderPipeline(rep){
+  const latest = latestPerCompany(callsByRep[rep]);
+  const counts = {};
+  latest.forEach(c=>{ const key = c.status || 'No status'; counts[key] = (counts[key]||0)+1; });
+  const max = Math.max(...Object.values(counts), 1);
+  document.getElementById(rep+'-pipelineTotal').textContent = `${latest.length} companies in ${rep}'s pipeline`;
+  const order = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  document.getElementById(rep+'-pipeline').innerHTML = order.map(([status,n])=>`
+    <div class="pipe-row">
+      <div class="pipe-label">${escapeHtml(status)}</div>
+      <div class="pipe-track"><div class="pipe-fill" style="width:${(n/max*100).toFixed(0)}%"></div></div>
+      <div class="pipe-count">${n}</div>
+    </div>
+  `).join('');
+}
+
+/* ---------- rep company datalist ---------- */
+function renderCompanyList(rep){
+  const names = new Set(prospects.map(p=>p.company));
+  callsByRep[rep].forEach(c=>names.add(c.company));
+  document.getElementById(rep+'-companyList').innerHTML = [...names].map(n=>`<option value="${escapeAttr(n)}">`).join('');
+}
+
+/* ---------- form submit ---------- */
+async function handleSubmit(e, rep){
+  e.preventDefault();
+  const company = document.getElementById(rep+'-fCompany').value.trim();
+  if(!company) return;
+  const contact = document.getElementById(rep+'-fContact').value.trim();
+  const phone = document.getElementById(rep+'-fPhone').value.trim();
+  const status = document.getElementById(rep+'-fStatus').value;
+  const note = document.getElementById(rep+'-fNotes').value.trim();
+  const productInfo = document.getElementById(rep+'-fProduct').value.trim();
+  const supermarketsVal = document.getElementById(rep+'-fSupermarkets').value;
+  const followUpDate = document.getElementById(rep+'-fFollowUp').value;
+
+  callsByRep[rep].push({
+    id: rep+'-c'+Date.now(), rep, company, contact, phone, status, note, productInfo,
+    supermarkets: supermarketsVal ? Number(supermarketsVal) : null,
+    lastCallDate: todayStr(), followUpDate: followUpDate || null, createdAt: Date.now()
+  });
+  await saveCalls(rep);
+  e.target.reset();
+  renderRepDashboard(rep);
+}
+
+/* ---------- rep dashboard master render ---------- */
+function renderRepDashboard(rep){
+  renderRepStatsDOM(rep);
+  renderQueue(rep);
+  renderHistory(rep);
+  renderPipeline(rep);
+  renderCompanyList(rep);
+}
+
+/* ============================================================
+   TEAM OVERVIEW
+   ============================================================ */
+function renderOverview(){
+  const t = todayStr(); const weekAgo = daysFromToday(-6);
+  let todayCalls=0, weekCalls=0, total=0;
+  let combinedLatest = [];
+  for(const rep of REPS){
+    const calls = callsByRep[rep];
+    todayCalls += calls.filter(c=>c.lastCallDate===t).length;
+    weekCalls += calls.filter(c=>c.lastCallDate>=weekAgo && c.lastCallDate<=t).length;
+    total += calls.length;
+    combinedLatest = combinedLatest.concat(latestPerCompany(calls).map(c=>({...c, rep})));
+  }
+  document.getElementById('ov-statToday').textContent = todayCalls;
+  document.getElementById('ov-statWeek').textContent = weekCalls;
+  document.getElementById('ov-statTotal').textContent = total;
+
+  const overdue = combinedLatest.filter(c=>c.followUpDate && c.followUpDate<t).sort((a,b)=>a.followUpDate.localeCompare(b.followUpDate));
+  const dueToday = combinedLatest.filter(c=>c.followUpDate===t);
+  const dueTomorrow = combinedLatest.filter(c=>c.followUpDate===daysFromToday(1));
+  document.getElementById('ov-statOverdue').textContent = overdue.length;
+  document.getElementById('ov-statDueToday').textContent = dueToday.length;
+  document.getElementById('ov-statDueTomorrow').textContent = dueTomorrow.length;
+
+  const mw = repStats('MW'), jz = repStats('JZRZ');
+  document.getElementById('mw-mini-today').textContent = mw.todayCalls;
+  document.getElementById('mw-mini-total').textContent = mw.total;
+  document.getElementById('mw-mini-overdue').textContent = mw.overdue.length;
+  document.getElementById('jz-mini-today').textContent = jz.todayCalls;
+  document.getElementById('jz-mini-total').textContent = jz.total;
+  document.getElementById('jz-mini-overdue').textContent = jz.overdue.length;
+
+  document.getElementById('ov-queueCount').textContent = overdue.length ? `(${overdue.length})` : '';
+  const box = document.getElementById('ov-queueList');
+  if(overdue.length===0){ box.innerHTML = `<div class="empty-note">Nothing overdue across the team. Clean slate.</div>`; }
+  else{
+    box.innerHTML = overdue.map(c=>{
+      const d = Math.abs(daysDiff(c.followUpDate));
+      const phoneRaw = (c.phone||'').replace(/[^0-9+]/g,'');
+      return `
+      <div class="queue-item overdue">
+        <div class="qi-main">
+          <div class="qi-company">${escapeHtml(c.company)}</div>
+          <div class="qi-meta">${c.phone?escapeHtml(c.phone):''}</div>
+          ${c.note?`<div class="qi-note">${escapeHtml(c.note)}</div>`:''}
+        </div>
+        <div class="qi-actions">
+          <span class="qi-tag rep">${c.rep}</span>
+          <span class="qi-tag overdue">${d} day${d===1?'':'s'} overdue</span>
+          ${phoneRaw?`<a class="qi-btn call" href="tel:${phoneRaw}">Call</a>`:''}
+          <button class="qi-btn" onclick="switchView('${c.rep}')">Open in ${c.rep}</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  const counts = {};
+  combinedLatest.forEach(c=>{ const key=c.status||'No status'; counts[key]=(counts[key]||0)+1; });
+  const max = Math.max(...Object.values(counts), 1);
+  document.getElementById('ov-pipelineTotal').textContent = `${combinedLatest.length} companies tracked across the team`;
+  const order = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('ov-pipeline').innerHTML = order.map(([status,n])=>`
+    <div class="pipe-row">
+      <div class="pipe-label">${escapeHtml(status)}</div>
+      <div class="pipe-track"><div class="pipe-fill" style="width:${(n/max*100).toFixed(0)}%"></div></div>
+      <div class="pipe-count">${n}</div>
+    </div>
+  `).join('');
+}
+
+/* ============================================================
+   CONTACTS (Sheet1 master list)
+   ============================================================ */
+function renderContacts(){
+  const search = (document.getElementById('ct-search').value||'').toLowerCase();
+  const rows = prospects.filter(p=>{
+    if(!search) return true;
+    return (p.company+' '+p.category).toLowerCase().includes(search);
+  });
+  document.getElementById('ct-count').textContent = `(${rows.length})`;
+
+  const calledByMW = new Set(callsByRep.MW.map(c=>c.company.toLowerCase()));
+  const calledByJZRZ = new Set(callsByRep.JZRZ.map(c=>c.company.toLowerCase()));
+
+  document.getElementById('ct-list').innerHTML = rows.map(p=>{
+    const key = p.company.toLowerCase();
+    const mwYes = calledByMW.has(key);
+    const jzYes = calledByJZRZ.has(key);
+    const phoneRaw = (p.phone||'').replace(/[^0-9+]/g,'');
+    return `
+    <div class="contact-card">
+      <div class="cc-top">
+        <div>
+          <div class="cc-name">${escapeHtml(p.company)}</div>
+          <div class="cc-meta">${escapeHtml(p.category||'')}${p.phone?(' · '+escapeHtml(p.phone)):''}${p.email?(' · '+escapeHtml(p.email)):''}</div>
+        </div>
+        <div class="cc-owner">
+          <span class="owner-chip ${mwYes?'yes':'no'}">MW ${mwYes?'✓':'—'}</span>
+          <span class="owner-chip ${jzYes?'yes':'no'}">JZRZ ${jzYes?'✓':'—'}</span>
+          ${phoneRaw?`<a class="qi-btn call" href="tel:${phoneRaw}">Call</a>`:''}
+        </div>
+      </div>
+      ${p.note?`<div class="cc-note">${escapeHtml(p.note)}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+/* ---------- init ---------- */
+(async function init(){
+  tickClock();
+  setInterval(tickClock, 30000);
+  initRepViews();
+  await loadData();
+  renderOverview();
+})();
+</script>
+</body>
+</html>

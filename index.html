@@ -6,6 +6,7 @@
 <title>DALA · Call Ops</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   :root{
     --black:#0B0B0C; --red:#C81D25; --red-dim:#8F1418; --red-glow:rgba(200,29,37,0.35);
@@ -295,28 +296,65 @@ let prospects = [];
 let callsByRep = {MW:[], JZRZ:[]};
 let queueTabByRep = {MW:'overdue', JZRZ:'overdue'};
 
-const PKEY = 'prospects-list';
-const CKEY = {MW:'calls-mw', JZRZ:'calls-jzrz'};
+/* ---------- Supabase ---------- */
+const SUPABASE_URL = 'https://nkvjyxlpkuiuqgtsmhfz.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rdmp5eGxwa3VpdXFndHNtaGZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUxODA2NjYsImV4cCI6MjEwMDc1NjY2Nn0.im8xsGcNGj2veZzP45wQWN2T2PUy09VD6rYbJriJVFI';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-/* ---------- storage ---------- */
+function mapCallRow(c){
+  return {
+    id: c.id, rep: c.rep, company: c.company, contact: c.contact, phone: c.phone,
+    status: c.status, note: c.note, productInfo: c.product_info, supermarkets: c.supermarkets,
+    lastCallDate: c.last_call_date, followUpDate: c.follow_up_date,
+    createdAt: c.created_at ? new Date(c.created_at).getTime() : Date.now()
+  };
+}
+
+/* ---------- data load (Supabase, seeding on first run) ---------- */
 async function loadData(){
-  try{ const p = await window.storage.get(PKEY); prospects = p ? JSON.parse(p.value) : null; }catch(e){ prospects = null; }
-  if(!prospects){ prospects = SEED_PROSPECTS.map((p,i)=>({id:'p'+(i+1), ...p})); await saveProspects(); }
+  let {data: pData} = await sb.from('prospects').select('*').order('created_at');
+  if(!pData || pData.length===0){
+    await sb.from('prospects').insert(SEED_PROSPECTS);
+    ({data: pData} = await sb.from('prospects').select('*').order('created_at'));
+  }
+  prospects = (pData||[]).map(p=>({id:p.id, company:p.company, category:p.category, phone:p.phone, email:p.email, note:p.note}));
 
   for(const rep of REPS){
-    try{
-      const c = await window.storage.get(CKEY[rep]);
-      callsByRep[rep] = c ? JSON.parse(c.value) : null;
-    }catch(e){ callsByRep[rep] = null; }
-    if(!callsByRep[rep]){
-      const seed = rep==='MW' ? SEED_CALLS_MW : SEED_CALLS_JZRZ;
-      callsByRep[rep] = seed.map((c,i)=>({id:rep+'-c'+(i+1), rep, followUpDate:null, createdAt: Date.now()-(seed.length-i)*1000, ...c}));
-      await saveCalls(rep);
+    let {data: cData} = await sb.from('calls').select('*').eq('rep', rep).order('created_at');
+    if(!cData || cData.length===0){
+      const seed = (rep==='MW' ? SEED_CALLS_MW : SEED_CALLS_JZRZ).map(c=>({
+        rep, company:c.company, contact:c.contact||null, phone:c.phone||null, status:c.status||null,
+        note:c.note||null, product_info:c.productInfo||null, supermarkets:c.supermarkets||null,
+        last_call_date:c.lastCallDate, follow_up_date:null
+      }));
+      await sb.from('calls').insert(seed);
+      ({data: cData} = await sb.from('calls').select('*').eq('rep', rep).order('created_at'));
     }
+    callsByRep[rep] = (cData||[]).map(mapCallRow);
   }
 }
-async function saveProspects(){ try{ await window.storage.set(PKEY, JSON.stringify(prospects)); }catch(e){console.error(e);} }
-async function saveCalls(rep){ try{ await window.storage.set(CKEY[rep], JSON.stringify(callsByRep[rep])); }catch(e){console.error(e);} }
+
+/* ---------- live sync across devices ---------- */
+let realtimeReloadTimer = null;
+function scheduleReload(){
+  clearTimeout(realtimeReloadTimer);
+  realtimeReloadTimer = setTimeout(async ()=>{
+    await loadData();
+    const activeBtn = document.querySelector('.nav-btn.active');
+    const view = activeBtn ? activeBtn.dataset.view : 'overview';
+    if(view==='overview') renderOverview();
+    else if(view==='MW' || view==='JZRZ') renderRepDashboard(view);
+    else if(view==='contacts') renderContacts();
+  }, 400);
+}
+function initRealtime(){
+  sb.channel('calls-changes')
+    .on('postgres_changes', {event:'*', schema:'public', table:'calls'}, scheduleReload)
+    .subscribe();
+  sb.channel('prospects-changes')
+    .on('postgres_changes', {event:'*', schema:'public', table:'prospects'}, scheduleReload)
+    .subscribe();
+}
 
 /* ---------- date helpers ---------- */
 function todayStr(){ return new Date().toISOString().slice(0,10); }
@@ -574,8 +612,8 @@ function renderHistory(rep){
 }
 
 async function deleteCall(rep, id){
+  await sb.from('calls').delete().eq('id', id);
   callsByRep[rep] = callsByRep[rep].filter(c=>c.id!==id);
-  await saveCalls(rep);
   renderRepDashboard(rep);
 }
 
@@ -616,12 +654,15 @@ async function handleSubmit(e, rep){
   const supermarketsVal = document.getElementById(rep+'-fSupermarkets').value;
   const followUpDate = document.getElementById(rep+'-fFollowUp').value;
 
-  callsByRep[rep].push({
-    id: rep+'-c'+Date.now(), rep, company, contact, phone, status, note, productInfo,
-    supermarkets: supermarketsVal ? Number(supermarketsVal) : null,
-    lastCallDate: todayStr(), followUpDate: followUpDate || null, createdAt: Date.now()
-  });
-  await saveCalls(rep);
+  const {data, error} = await sb.from('calls').insert({
+    rep, company, contact: contact||null, phone: phone||null, status: status||null, note: note||null,
+    product_info: productInfo||null, supermarkets: supermarketsVal ? Number(supermarketsVal) : null,
+    last_call_date: todayStr(), follow_up_date: followUpDate || null
+  }).select();
+
+  if(error){ alert('Could not save this call — check your connection and try again.'); console.error(error); return; }
+  if(data && data[0]) callsByRep[rep].push(mapCallRow(data[0]));
+
   e.target.reset();
   renderRepDashboard(rep);
 }
@@ -750,6 +791,7 @@ function renderContacts(){
   initRepViews();
   await loadData();
   renderOverview();
+  initRealtime();
 })();
 </script>
 </body>

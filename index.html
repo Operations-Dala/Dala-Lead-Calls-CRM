@@ -314,7 +314,8 @@ function mapCallRow(c){
 async function loadData(){
   let {data: pData} = await sb.from('prospects').select('*').order('created_at');
   if(!pData || pData.length===0){
-    await sb.from('prospects').insert(SEED_PROSPECTS);
+    const seedProspects = SEED_PROSPECTS.map(p=>({...p, phone: p.phone ? normalizePhone(p.phone) : p.phone}));
+    await sb.from('prospects').insert(seedProspects);
     ({data: pData} = await sb.from('prospects').select('*').order('created_at'));
   }
   prospects = (pData||[]).map(p=>({id:p.id, company:p.company, category:p.category, phone:p.phone, email:p.email, note:p.note}));
@@ -323,7 +324,7 @@ async function loadData(){
     let {data: cData} = await sb.from('calls').select('*').eq('rep', rep).order('created_at');
     if(!cData || cData.length===0){
       const seed = (rep==='MW' ? SEED_CALLS_MW : SEED_CALLS_JZRZ).map(c=>({
-        rep, company:c.company, contact:c.contact||null, phone:c.phone||null, status:c.status||null,
+        rep, company:c.company, contact:c.contact||null, phone: c.phone ? normalizePhone(c.phone) : null, status:c.status||null,
         note:c.note||null, product_info:c.productInfo||null, supermarkets:c.supermarkets||null,
         last_call_date:c.lastCallDate, follow_up_date:null
       }));
@@ -363,6 +364,25 @@ function fmtDate(iso){ if(!iso) return '—'; const d=new Date(iso+'T00:00:00');
 function daysDiff(iso){ const d1=new Date(todayStr()+'T00:00:00'); const d2=new Date(iso+'T00:00:00'); return Math.round((d2-d1)/86400000); }
 function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
+
+/* ---------- phone normalization: always store/display with a country code, default +234 ---------- */
+function normalizePhone(raw){
+  if(!raw) return '';
+  let digits = String(raw).trim().replace(/[^\d+]/g,'');
+  if(!digits) return '';
+  if(digits.startsWith('+')) return digits;
+  if(digits.startsWith('00')) return '+' + digits.slice(2);
+  if(digits.startsWith('234')) return '+' + digits;
+  if(digits.startsWith('0')) return '+234' + digits.slice(1);
+  return '+234' + digits;
+}
+function formatPhoneDisplay(raw){
+  const n = normalizePhone(raw);
+  if(!n) return '';
+  const m = n.match(/^(\+\d{1,4})(\d{3})(\d{3})(\d{2,5})$/);
+  return m ? `${m[1]} ${m[2]} ${m[3]} ${m[4]}` : n;
+}
+function telHref(raw){ return normalizePhone(raw); }
 
 function tickClock(){
   const now=new Date();
@@ -420,7 +440,7 @@ function repTemplate(rep){
             </div>
             <div class="field-row">
               <div class="field"><label>Contact person</label><input id="${rep}-fContact" placeholder="Optional"></div>
-              <div class="field"><label>Phone number</label><input id="${rep}-fPhone" placeholder="Optional"></div>
+              <div class="field"><label>Phone number</label><input id="${rep}-fPhone" placeholder="e.g. +2348012345678"></div>
             </div>
             <div class="field">
               <label>Status</label>
@@ -543,18 +563,18 @@ function renderQueue(rep){
     else if(tab==='today'){ cls='today'; tag=`<span class="qi-tag today">Due today</span>`; }
     else if(tab==='tomorrow'){ cls='tomorrow'; tag=`<span class="qi-tag tomorrow">Due tomorrow</span>`; }
     else { cls='tomorrow'; tag=`<span class="qi-tag tomorrow">Not yet called</span>`; }
-    const phoneRaw = (c.phone||'').replace(/[^0-9+]/g,'');
+    const phoneRaw = telHref(c.phone);
     return `
     <div class="queue-item ${cls}">
       <div class="qi-main">
         <div class="qi-company">${escapeHtml(c.company)}</div>
-        <div class="qi-meta">${escapeHtml(c.category||'')}${c.phone?(' · '+escapeHtml(c.phone)):''}</div>
+        <div class="qi-meta">${escapeHtml(c.category||'')}${c.phone?(' · '+escapeHtml(formatPhoneDisplay(c.phone))):''}</div>
         ${c.note?`<div class="qi-note">${escapeHtml(c.note)}</div>`:''}
       </div>
       <div class="qi-actions">
         ${tag}
         ${phoneRaw?`<a class="qi-btn call" href="tel:${phoneRaw}">Call</a>`:''}
-        <button class="qi-btn" onclick="quickLog('${rep}','${escapeAttr(c.company)}','${escapeAttr(c.phone||'')}')">Log outcome</button>
+        <button class="qi-btn" onclick="quickLog('${rep}','${escapeAttr(c.company)}','${escapeAttr(telHref(c.phone))}')">Log outcome</button>
       </div>
     </div>`;
   }).join('');
@@ -647,7 +667,7 @@ async function handleSubmit(e, rep){
   const company = document.getElementById(rep+'-fCompany').value.trim();
   if(!company) return;
   const contact = document.getElementById(rep+'-fContact').value.trim();
-  const phone = document.getElementById(rep+'-fPhone').value.trim();
+  const phone = normalizePhone(document.getElementById(rep+'-fPhone').value.trim());
   const status = document.getElementById(rep+'-fStatus').value;
   const note = document.getElementById(rep+'-fNotes').value.trim();
   const productInfo = document.getElementById(rep+'-fProduct').value.trim();
@@ -715,12 +735,12 @@ function renderOverview(){
   else{
     box.innerHTML = overdue.map(c=>{
       const d = Math.abs(daysDiff(c.followUpDate));
-      const phoneRaw = (c.phone||'').replace(/[^0-9+]/g,'');
+      const phoneRaw = telHref(c.phone);
       return `
       <div class="queue-item overdue">
         <div class="qi-main">
           <div class="qi-company">${escapeHtml(c.company)}</div>
-          <div class="qi-meta">${c.phone?escapeHtml(c.phone):''}</div>
+          <div class="qi-meta">${c.phone?escapeHtml(formatPhoneDisplay(c.phone)):''}</div>
           ${c.note?`<div class="qi-note">${escapeHtml(c.note)}</div>`:''}
         </div>
         <div class="qi-actions">
@@ -765,13 +785,13 @@ function renderContacts(){
     const key = p.company.toLowerCase();
     const mwYes = calledByMW.has(key);
     const jzYes = calledByJZRZ.has(key);
-    const phoneRaw = (p.phone||'').replace(/[^0-9+]/g,'');
+    const phoneRaw = telHref(p.phone);
     return `
     <div class="contact-card">
       <div class="cc-top">
         <div>
           <div class="cc-name">${escapeHtml(p.company)}</div>
-          <div class="cc-meta">${escapeHtml(p.category||'')}${p.phone?(' · '+escapeHtml(p.phone)):''}${p.email?(' · '+escapeHtml(p.email)):''}</div>
+          <div class="cc-meta">${escapeHtml(p.category||'')}${p.phone?(' · '+escapeHtml(formatPhoneDisplay(p.phone))):''}${p.email?(' · '+escapeHtml(p.email)):''}</div>
         </div>
         <div class="cc-owner">
           <span class="owner-chip ${mwYes?'yes':'no'}">MW ${mwYes?'✓':'—'}</span>
@@ -784,11 +804,31 @@ function renderContacts(){
   }).join('');
 }
 
+/* ---------- one-time cleanup: fix any numbers already stored without a country code ---------- */
+async function migratePhoneNumbers(){
+  const {data: pRows} = await sb.from('prospects').select('id, phone');
+  for(const r of pRows||[]){
+    if(r.phone){
+      const norm = normalizePhone(r.phone);
+      if(norm !== r.phone) await sb.from('prospects').update({phone: norm}).eq('id', r.id);
+    }
+  }
+  const {data: cRows} = await sb.from('calls').select('id, phone');
+  for(const r of cRows||[]){
+    if(r.phone){
+      const norm = normalizePhone(r.phone);
+      if(norm !== r.phone) await sb.from('calls').update({phone: norm}).eq('id', r.id);
+    }
+  }
+}
+
 /* ---------- init ---------- */
 (async function init(){
   tickClock();
   setInterval(tickClock, 30000);
   initRepViews();
+  await loadData();
+  await migratePhoneNumbers();
   await loadData();
   renderOverview();
   initRealtime();

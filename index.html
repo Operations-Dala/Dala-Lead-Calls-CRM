@@ -164,9 +164,11 @@
     <div class="nav">
       <div class="nav-inner">
         <button class="nav-btn active" data-view="overview" onclick="switchView('overview')">Team Overview</button>
+        <button class="nav-btn" data-view="coverage" onclick="switchView('coverage')">Coverage</button>
         <button class="nav-btn" data-view="MW" onclick="switchView('MW')">MW</button>
         <button class="nav-btn" data-view="JZRZ" onclick="switchView('JZRZ')">JZRZ</button>
-        <button class="nav-btn" data-view="contacts" onclick="switchView('contacts')">Contacts</button>
+        <button class="nav-btn" data-view="contacts" onclick="switchView('contacts')">Brands</button>
+        <button class="nav-btn" data-view="review" onclick="switchView('review')">Needs Review</button>
       </div>
     </div>
   </div>
@@ -222,14 +224,62 @@
     <div class="view" id="view-MW"></div>
     <div class="view" id="view-JZRZ"></div>
 
-    <!-- ===================== CONTACTS ===================== -->
+    <!-- ===================== COVERAGE ===================== -->
+    <div class="view" id="view-coverage">
+      <section style="margin-top:24px;">
+        <div class="section-head">
+          <div class="section-title">Weekly coverage <span class="section-note" id="cov-weekLabel"></span></div>
+          <div class="tabs">
+            <button class="tab-btn active" id="cov-tab-this" onclick="setCoverageWeek(0)">This week</button>
+            <button class="tab-btn" id="cov-tab-prev" onclick="setCoverageWeek(-1)">Previous week</button>
+          </div>
+        </div>
+        <div class="tally-strip">
+          <div class="tally-card accent"><span class="tally-label">Call attempts</span><div class="tally-num" id="cov-attempts">0</div><div class="tally-sub">every logged call</div></div>
+          <div class="tally-card"><span class="tally-label">Unique brands called</span><div class="tally-num" id="cov-unique">0</div><div class="tally-sub">counted once each</div></div>
+          <div class="tally-card"><span class="tally-label">New brands</span><div class="tally-num" id="cov-new">0</div><div class="tally-sub">contacted for the first time</div></div>
+          <div class="tally-card"><span class="tally-label">Repeat follow-ups</span><div class="tally-num" id="cov-repeat">0</div><div class="tally-sub">already contacted before</div></div>
+          <div class="tally-card"><span class="tally-label">Overall coverage</span><div class="tally-num" id="cov-pct">0%</div><div class="tally-sub">of all active brands</div></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head"><div class="section-title">Coverage by tier</div><div class="section-note">click a figure to see the brands</div></div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Brand Tier</th><th>Total Brands</th><th>Unique Called</th><th>Not Called</th><th>Coverage %</th></tr></thead>
+            <tbody id="cov-tierTable"></tbody>
+          </table>
+        </div>
+        <div id="cov-drilldown" style="margin-top:14px;"></div>
+      </section>
+
+      <section>
+        <div class="section-head"><div class="section-title">By caller</div></div>
+        <div class="rep-compare" id="cov-byCaller"></div>
+      </section>
+    </div>
+
+    <!-- ===================== BRAND MASTER ===================== -->
     <div class="view" id="view-contacts">
       <section style="margin-top:24px;">
-        <div class="section-head"><div class="section-title">Master prospect list <span class="count" id="ct-count"></span></div><div class="section-note">shared reference — Sheet1</div></div>
+        <div class="section-head"><div class="section-title">Brand Master <span class="count" id="ct-count"></span></div><div class="section-note">single source of truth — imported from Raw Data</div></div>
         <div class="filter-bar">
-          <input id="ct-search" placeholder="Search company or category…" oninput="renderContacts()">
+          <input id="ct-search" placeholder="Search brand, category, or contact…" oninput="renderContacts()">
+          <select id="ct-tierFilter" onchange="renderContacts()">
+            <option value="">All tiers</option>
+            <option>Enterprise</option><option>Expansion</option><option>Emerging</option>
+          </select>
         </div>
         <div id="ct-list"></div>
+      </section>
+    </div>
+
+    <!-- ===================== NEEDS REVIEW ===================== -->
+    <div class="view" id="view-review">
+      <section style="margin-top:24px;">
+        <div class="section-head"><div class="section-title">Duplicate review queue <span class="count" id="rv-count"></span></div><div class="section-note">flagged at import — nothing merged automatically</div></div>
+        <div id="rv-list"></div>
       </section>
     </div>
 
@@ -291,10 +341,387 @@ const SEED_CALLS_JZRZ = [
   {company:"Kudara Foods", contact:"", phone:"08034254040", status:"Warm", lastCallDate:"2026-05-25", note:"Ready to go back to invest in online marketing. Concluded on sending the SLA — a productive commitment.", productInfo:"Tigernut, Zobo", supermarkets:15},
 ];
 
+const SEED_BRANDS = [
+  {brand_id:"ENT-001", name:"ReelFruit (Nature's Bounty Health Products)", norm_name:"reelfruit", tier:"Enterprise", category:"Food", subcategory:"Healthy Snacks/Dried Fruit", description:"A leading Nigerian healthy snack brand specializing in dried fruit, backed by significant funding and nationwide distribution.", retail_presence:"Shoprite, SPAR, Hubmart, Prince Ebeano, various airports.", location:null, revenue:null, lead_status:"live convo", latest_note:"follow up to onboard", primary_email:"info@reelfruit.com"},
+  {brand_id:"ENT-002", name:"Tiger Foods Limited", norm_name:"tiger", tier:"Enterprise", category:"Food", subcategory:"Spices/Seasonings", description:"A household name in Nigerian seasonings and spices with extensive factory infrastructure and national supermarket penetration.", retail_presence:"Nationwide (Shoprite, SPAR, Prince Ebeano, Markets).", location:null, revenue:null, lead_status:"email proposal", latest_note:"shared national sales manager contact", primary_email:"info@tigerfoods.com"},
+  {brand_id:"ENT-003", name:"Beloxxi Industries Limited", norm_name:"beloxxi", tier:"Enterprise", category:"Food", subcategory:"Crackers/Biscuits", description:"Massive‑scale biscuit and cracker manufacturer with near‑ubiquitous presence across supermarkets and street vendors.", retail_presence:"Shoprite, Justrite, SPAR, all major supermarkets.", location:null, revenue:null, lead_status:"email", latest_note:"need updated number", primary_email:"info@beloxxigroup.com"},
+  {brand_id:"ENT-004", name:"Fastizers Food and Confectionery", norm_name:"fastizersandconfectionery", tier:"Enterprise", category:"Food", subcategory:"Cookies & Snacks", description:"Maker of the high‑volume \"Nibit\" cookies, a staple in Nigerian supermarkets and corner stores.", retail_presence:"Shoprite, Justrite, Addide, SPAR.", location:"Plot 1, Fastizers Industrial Park, Sasure Road, by Medina Estate, Off Agbara-Atan express way, Igbesa, Ogun State", revenue:null, lead_status:"email", latest_note:"personal connection. avoiding calls and doesn't respond to missed calls", primary_email:"sales@fastizers.com"},
+  {brand_id:"ENT-005", name:"Ayoola Foods", norm_name:"ayoola", tier:"Enterprise", category:"Food", subcategory:"Poundo Yam & Flours", description:"Dominant market leader in the poundo yam and flour category, stocked across all major retail chains.", retail_presence:"Shoprite, SPAR, Justrite, Prince Ebeano, Hubmart.", location:null, revenue:null, lead_status:"email", latest_note:"somone in house doing this", primary_email:"info@ayoolafoodsnig.com"},
+  {brand_id:"ENT-006", name:"Vital Products PLC", norm_name:"vitalproducts", tier:"Enterprise", category:"Beverages & Food", subcategory:"Fruit Juices & Tomato Paste", description:"Manufacturer of \"Vital\" and \"Jive\" fruit juices and tomato paste with significant factory capacity and wide distribution.", retail_presence:"Shoprite, Justrite, SPAR.", location:"Plot 12, Acme Road, Ogba, Ikeja, Lagos", revenue:null, lead_status:"email", latest_note:"asked we come with physical proposal", primary_email:"info@vitalproductsplc.com"},
+  {brand_id:"ENT-007", name:"Nutri-Milk (Cansum Foods / CWAY Group)", norm_name:"nutrimilk", tier:"Enterprise", category:"Beverages", subcategory:"Dairy/Fruit Blends", description:"High‑volume, lower‑price dairy/fruit blend brand with massive turnover in open markets and neighbourhood supermarkets.", retail_presence:"Justrite, Addide, Open Markets.", location:"Plot 98/100, Oshodi – Apapa expressway, Isolo, Lagos", revenue:null, lead_status:"email", latest_note:"need updated number", primary_email:"cway_nig@cway.com"},
+  {brand_id:"ENT-008", name:"Habib Yogurt (Habib Yoghurt & Fura)", norm_name:"habibyogurt", tier:"Enterprise", category:"Food", subcategory:"Fresh Yogurt/Fura", description:"Originally a kiosk brand, now produces NAFDAC‑certified bottled yogurt sold in major supermarket cold chains.", retail_presence:"Shoprite, SPAR, Prince Ebeano, and standalone outlets.", location:null, revenue:"₦80M – ₦100M+", lead_status:"email", latest_note:"need updated number", primary_email:"info@habibyoghurt.com"},
+  {brand_id:"ENT-009", name:"L&Z Integrated Farms", norm_name:"lz", tier:"Enterprise", category:"Food", subcategory:"Natural Fresh Yogurt", description:"Established dairy farm with industrial processing capacity supplying fresh yogurt nationwide to major chains.", retail_presence:"Shoprite, SPAR, Prince Ebeano.", location:null, revenue:"₦50M – ₦90M", lead_status:"email", latest_note:"need updated number", primary_email:"info@lzfarms.com"},
+  {brand_id:"ENT-010", name:"Farm Fresh (Integrated Produce City / Integrated Dairies)", norm_name:"fresh", tier:"Enterprise", category:"Food", subcategory:"Probiotic Yogurt", description:"Probiotic yogurt brand with NAFDAC certification and professional cold‑chain logistics across Lagos and the South‑South.", retail_presence:"Shoprite, SPAR, Market Square.", location:null, revenue:"₦60M – ₦90M", lead_status:"email", latest_note:"not picking", primary_email:"sales@farmfresh.com.ng"},
+  {brand_id:"ENT-011", name:"Hans and Rene (Gelato & Sorbet)", norm_name:"hansandrene", tier:"Enterprise", category:"Ice Cream", subcategory:"Premium Gelato", description:"Premium gelato brand with luxury standalone outlets and pint distribution in top‑tier supermarkets.", retail_presence:"Shoprite, Hubmart, Prince Ebeano, Hans & Rene standalone stores.", location:null, revenue:"₦60M – ₦95M", lead_status:null, latest_note:null, primary_email:"hello@hansandrene.com"},
+  {brand_id:"ENT-012", name:"FreshYo (Mikano Foods Division)", norm_name:"freshyo", tier:"Enterprise", category:"Food", subcategory:"Drinkable Yogurt", description:"Backed by Mikano International, this drinkable yogurt brand has massive nationwide distribution and heavy advertising.", retail_presence:"Nationwide (Shoprite, SPAR, Justrite, Addide).", location:null, revenue:"₦90M+", lead_status:"email", latest_note:"not picking", primary_email:"info@mikano-intl.com"},
+  {brand_id:"ENT-013", name:"Nutri-Yo (Cansum Foods)", norm_name:"nutriyo", tier:"Enterprise", category:"Food", subcategory:"Drinkable Yogurt", description:"Top‑tier competitor to FanMilk with immense volume in open markets and every major retail chain in Nigeria.", retail_presence:"Nationwide (Justrite, Shoprite, SPAR, Supermart.ng).", location:null, revenue:"₦100M+", lead_status:"email", latest_note:"need updated number", primary_email:"sales@nutriyo.com.ng"},
+  {brand_id:"ENT-014", name:"SuperYogo (Fan Milk PLC)", norm_name:"superyogo", tier:"Enterprise", category:"Frozen Dairy", subcategory:"Ice Cream/Frozen Yogurt", description:"Part of the Danone group, this frozen dairy brand has industrial scale and presence in every formal and informal retail point in Nigeria.", retail_presence:"Nationwide (Shoprite, SPAR, Justrite, Markets).", location:null, revenue:"₦100M+", lead_status:null, latest_note:null, primary_email:"info.fanmilk@danone.com"},
+  {brand_id:"ENT-015", name:"NASCO Group (NASCO Cornflakes)", norm_name:"nasco", tier:"Enterprise", category:"Cereals", subcategory:"Cornflakes, Frosted Flakes, Whole Wheat", description:"A legacy Nigerian powerhouse with massive national distribution and established industrial capacity for cereals.", retail_presence:"Shoprite, SPAR, Justrite, Markets Nationwide.", location:null, revenue:"₦90M+", lead_status:"email sent. ", latest_note:"follow up for response", primary_email:"info@nasco.net"},
+  {brand_id:"ENT-016", name:"Peak Baby (FrieslandCampina WAMCO)", norm_name:"peakbaby", tier:"Enterprise", category:"Food", subcategory:"Infant Formula & Growing Up Milk", description:"National leader in infant formula and growing‑up milk with ubiquitous supermarket and open market distribution.", retail_presence:"Justrite, Shoprite, SPAR, Prince Ebeano.", location:"Plot 7B, Acme Road, Ogba, Ikeja, Lagos", revenue:"₦100M+", lead_status:"email", latest_note:"need updated number", primary_email:"peakbaby@frieslandcampina.com"},
+  {brand_id:"ENT-017", name:"Cow & Gate (Danone)", norm_name:"cowgate", tier:"Enterprise", category:"Food", subcategory:"Infant Formula", description:"Major international infant formula brand with consistent stock in premium Nigerian retail chains.", retail_presence:"Supermart.ng, Shoprite, Prince Ebeano, SPAR.", location:null, revenue:"₦70M – ₦90M", lead_status:"email", latest_note:"need updated number", primary_email:"info.danone@danone.com"},
+  {brand_id:"ENT-018", name:"Nutribom (Nutrimental)", norm_name:"nutribom", tier:"Enterprise", category:"Food", subcategory:"Infant Cereals", description:"Major international player in infant cereals with heavy volume in supermarkets and wholesale markets across Nigeria.", retail_presence:"Supermart.ng, Shoprite, SPAR, Justrite.", location:null, revenue:"₦60M – ₦90M", lead_status:"email", latest_note:"need updated number", primary_email:"info@nutrimental.com"},
+  {brand_id:"ENT-019", name:"Nutrilac (Promasidor)", norm_name:"nutrilac", tier:"Enterprise", category:"Food", subcategory:"Infant Cereal with Milk", description:"Affordable value‑tier infant cereal with milk, strongly present in major supermarket chains.", retail_presence:"Supermart.ng, Shoprite, Justrite, SPAR.", location:null, revenue:"₦50M – ₦80M", lead_status:"email", latest_note:"need updated number", primary_email:"info@promasidor.com"},
+  {brand_id:"ENT-020", name:"Creamy Inn (Innscor Africa/Simba Foods)", norm_name:"creamyinn", tier:"Enterprise", category:"Ice Cream", subcategory:"Soft Serve & Tubs", description:"Ice cream brand leveraging the Chicken Inn ecosystem, selling packaged tubs in co‑located retail points.", retail_presence:"Shoprite (via co‑located outlets), Total Energies convenience stores.", location:null, revenue:"₦50M – ₦80M", lead_status:"email", latest_note:"need updated number", primary_email:"feedback@simba-africa.com"},
+  {brand_id:"ENT-021", name:"Crunchies (Crunchies Fried Chicken Retail Div)", norm_name:"crunchies", tier:"Enterprise", category:"Snacks", subcategory:"Packaged Doughnuts & Pastries", description:"Dominant player in the South‑East and South‑South retail market for packaged pastries.", retail_presence:"Market Square, SPAR (PH), various regional supermarkets.", location:null, revenue:"₦45M – ₦75M", lead_status:"email", latest_note:"need updated number", primary_email:"info@crunchies.com.ng"},
+  {brand_id:"ENT-022", name:"AACE Foods", norm_name:"aace", tier:"Enterprise", category:"Food", subcategory:"Spices, Seasonings & Soya Maize", description:"Extensive retail footprint in spices, seasonings, and soya maize, with significant bulk supply to other food manufacturers.", retail_presence:"Shoprite, SPAR, Hubmart, Justrite.", location:null, revenue:"₦45M – ₦75M", lead_status:"email", latest_note:"personal contact. doesn't pick or respond to calls", primary_email:"info@aacefoods.com"},
+  {brand_id:"ENT-023", name:"All-Rounder (Fidson Healthcare FMCG Div.)", norm_name:"allrounder", tier:"Enterprise", category:"Household/Personal Care", subcategory:"Hygiene & Body", description:"Hygiene and body care brand competing with Dettol/Hypo, with massive supermarket distribution.", retail_presence:"Nationwide (Shoprite, SPAR, Justrite).", location:null, revenue:"₦40M – ₦70M", lead_status:"email", latest_note:"need updated number", primary_email:"info@fidson.com"},
+  {brand_id:"ENT-024", name:"Lush Hair (Tolaram Group FMCG)", norm_name:"lushhair", tier:"Enterprise", category:"Personal Care", subcategory:"Hair Extensions & Accessories", description:"A standalone retail powerhouse with massive ad spend and supermarket shelf dominance in the hair care aisle.", retail_presence:"Shoprite, SPAR, Justrite, Prince Ebeano.", location:null, revenue:"₦90M+", lead_status:"email", latest_note:"need updated number", primary_email:"info@lushhairnigeria.com"},
+  {brand_id:"ENT-025", name:"Viju Industries (Viju Family)", norm_name:"viju", tier:"Enterprise", category:"Beverages", subcategory:"Dairy/Yogurt", description:"Produces the popular Viju Milk drink series and various flavored yogurt products available in almost all Nigerian supermarkets.", retail_presence:"Nationwide supermarkets.", location:null, revenue:"₦60M – ₦90M", lead_status:"email", latest_note:"need updated number", primary_email:"info@vijufamily.com"},
+  {brand_id:"ENT-026", name:"Bobo Food and Beverages Limited", norm_name:"boboandbeverages", tier:"Enterprise", category:"Beverages", subcategory:"Milk/Yogurt", description:"A leader in children's milk-based drinks and yogurt beverages with national retail penetration.", retail_presence:"Nationwide.", location:null, revenue:"₦50M – ₦80M", lead_status:"email", latest_note:"need updated number", primary_email:"info@bobofoodandbeverages.com"},
+  {brand_id:"ENT-027", name:"Yale Foods (Foods Way)", norm_name:"yale", tier:"Enterprise", category:"Snacks", subcategory:"Biscuits", description:"A major manufacturer of diverse biscuits and snacks that target mass-market retail outlets.", retail_presence:"Major supermarket chains.", location:null, revenue:"₦50M – ₦80M", lead_status:"email", latest_note:"need updated number", primary_email:"info@yalefoods.com"},
+  {brand_id:"ENT-029", name:"Sosa Fruit Drink (Rite Foods)", norm_name:"sosafruitdrink", tier:"Enterprise", category:"Beverages", subcategory:"Juice", description:"A fast-growing juice segment from the makers of Fearless, with massive penetration in modern retail.", retail_presence:"Modern retail outlets.", location:null, revenue:"₦50M – ₦80M", lead_status:"email", latest_note:"not picking calls", primary_email:"info@ritefoodsltd.com"},
+  {brand_id:"ENT-030", name:"Sunfresh (FoodCo Manufacturing)", norm_name:"sunfresh", tier:"Enterprise", category:"Ice Cream & Juices", subcategory:null, description:"In-house brand for a fast-growing retailer, producing juices and ice cream for mass retail.", retail_presence:"FoodCo, SPAR, etc.", location:null, revenue:"₦40M – ₦70M", lead_status:"email", latest_note:"need updated number", primary_email:"info@foodco.ng"},
+  {brand_id:"ENT-031", name:"Jumon Products (Judious Link)", norm_name:"jumonproducts", tier:"Enterprise", category:"Dairy", subcategory:"Yogurt", description:"Large‑scale manufacturing of high‑quality yoghurt and milk drinks in Ogun State.", retail_presence:"South‑West supermarkets.", location:null, revenue:"₦50M – ₦70M", lead_status:"email", latest_note:"need updated number", primary_email:"info@jumonproducts.com.ng"},
+  {brand_id:"ENT-032", name:"Country Yoghurt (Kensalt)", norm_name:"countryyoghurt", tier:"Enterprise", category:"Food", subcategory:"Yogurt", description:"Reputable northern‑based brand that has scaled its yogurt production to supermarkets nationwide.", retail_presence:"Nationwide supermarkets.", location:null, revenue:"₦40M – ₦60M", lead_status:"email", latest_note:"not picking calls", primary_email:"kensaltng@gmail.com"},
+  {brand_id:"ENT-033", name:"Unaco Food Export", norm_name:"unacoexport", tier:"Enterprise", category:"Food", subcategory:"Packaged Staples", description:"Specializes in large‑scale production and retail packaging of indigenous staples like Ofada rice and Ijebu Garri for urban supermarkets.", retail_presence:"Not provided.", location:null, revenue:"₦50M – ₦80M", lead_status:"x", latest_note:"100% export focussed", primary_email:"unacofoodexport@gmail.com"},
+  {brand_id:"ENT-034", name:"Daily Need Industries", norm_name:"dailyneed", tier:"Enterprise", category:"Personal Care", subcategory:"Oral Hygiene", description:"Famous for pharmaceuticals, but their personal care and oral hygiene segments are major retail revenue drivers.", retail_presence:"Not provided.", location:null, revenue:"₦50M – ₦80M", lead_status:"email", latest_note:"not picking calls", primary_email:"info@dailyneedgroup.com"},
+  {brand_id:"ENT-035", name:"Darlo Skincare", norm_name:"darloskincare", tier:"Enterprise", category:"Personal Care", subcategory:"Skincare", description:"An industrial‑scale contract manufacturer and brand owner specializing in NAFDAC‑registered skincare and haircare for mass retail.", retail_presence:"Not provided.", location:null, revenue:"₦50M – ₦70M", lead_status:"email", latest_note:"need updated number", primary_email:"darloskincare@gmail.com"},
+  {brand_id:"EXP-001", name:"Easy Sauces Nigeria", norm_name:"easysauces", tier:"Expansion", category:"Food", subcategory:"Sauces & Spices", description:"Sauce and spice brand with a major retail footprint in Shoprite, SPAR, and Blenco, plus heavy digital marketing.", retail_presence:"SPAR, Shoprite, Justrite, Jendol, Blenco.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@easysauces.com"},
+  {brand_id:"EXP-002", name:"2603 Foods (Muad Stores)", norm_name:"2603", tier:"Expansion", category:"Food", subcategory:"Ready‑to‑cook Flour Mixes", description:"Specialised NAFDAC‑certified ready‑to‑cook flour mixes with high volume in Lagos‑based supermarket chains.", retail_presence:"Various supermarkets across Lagos and South‑West.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"muadbd1@gmail.com"},
+  {brand_id:"EXP-003", name:"Eljo Farms & Food Limited", norm_name:"eljo", tier:"Expansion", category:"Food", subcategory:"Processed Meats", description:"Major pork processing facility in Abuja with nationwide cold‑chain distribution to major retailers.", retail_presence:"SPAR (National), Wuse Market, Ice Planet Lagos.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"eljofarmslimited@gmail.com"},
+  {brand_id:"EXP-004", name:"Gratia Chin Chin", norm_name:"gratiachinchin", tier:"Expansion", category:"Food", subcategory:"Snack Packs", description:"High‑turnover snack brand supplying premium chains like Shoprite with packaged chin chin.", retail_presence:"Shoprite, Savemart, Supermart.ng.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"N/A"},
+  {brand_id:"EXP-005", name:"Toke Cosmetics", norm_name:"tokecosmetics", tier:"Expansion", category:"Personal Care", subcategory:"Skincare", description:"High‑engagement skincare brand with physical stores and large presence at major trade exhibitions.", retail_presence:"Trade Hubs, Lagos International Trade Fair complex, regional retail partners.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"tokecosmetics@gmail.com"},
+  {brand_id:"EXP-006", name:"Kandys Food", norm_name:"kandys", tier:"Expansion", category:"Food", subcategory:"Plantain Chips/Cereals", description:"Staple snack supplier of plantain chips and cereals to major supermarket chains in Lagos and Oyo states.", retail_presence:"Shoprite, Justrite, Markets.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"sales@kandysfood.com"},
+  {brand_id:"EXP-007", name:"Ma'Zaine Foods", norm_name:"mazaine", tier:"Expansion", category:"Food", subcategory:"Grains/Packaged Staples", description:"Large‑scale processor and contract packager of grains and packaged staples for export and domestic retail.", retail_presence:"Retail outlets across South‑West Nigeria.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"mazainefoods@gmail.com"},
+  {brand_id:"EXP-008", name:"Kaptain Foods", norm_name:"kaptain", tier:"Expansion", category:"Food", subcategory:"Pre‑cooked Tomato Stew Base", description:"Specialised pre‑cooked tomato stew base with high demand in urban supermarkets like Shoprite and Prince Ebeano.", retail_presence:"Shoprite, SPAR, Prince Ebeano, various Lagos supermarkets.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@kaptainfoods.com"},
+  {brand_id:"EXP-009", name:"Namaste Organics", norm_name:"namasteorganics", tier:"Expansion", category:"Personal Care", subcategory:"Natural Skincare", description:"Natural skincare brand with strong direct‑to‑consumer sales and high‑end retail placement in supermarket beauty sections.", retail_presence:"Various retail hubs and specialised beauty stores nationwide.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@mynamasteorganics.com"},
+  {brand_id:"EXP-010", name:"Spectra Industries Limited (Soba)", norm_name:"spectra", tier:"Expansion", category:"Food", subcategory:"Cereal/Soya Mix & Snacks", description:"Long‑standing manufacturer of NAFDAC‑certified staple cereals and snacks sold in major supermarkets.", retail_presence:"Shoprite, SPAR, Jendol.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@spectranigeria.com"},
+  {brand_id:"EXP-011", name:"Organic Life Plus", norm_name:"organiclifeplus", tier:"Expansion", category:"Personal Care", subcategory:"Natural Oils & Skincare", description:"Premium natural oils and skincare brand supplying high‑end pharmacies and supermarket beauty aisles.", retail_presence:"HealthPlus, MedPlus, SPAR.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"orders@organiclifeplus.com"},
+  {brand_id:"EXP-012", name:"Amal Botanicals", norm_name:"amalbotanicals", tier:"Expansion", category:"Personal Care", subcategory:"Baby & Child Care", description:"Growing niche natural baby and child care brand with verified retail placement in pharmacies and baby shops.", retail_presence:"MedPlus, HealthPlus, baby‑specific retail stores.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@amalbotanicals.com"},
+  {brand_id:"EXP-013", name:"OmoAlata Food Service", norm_name:"omoalataservice", tier:"Expansion", category:"Food", subcategory:"Peppermixes & Ofada Stew Bases", description:"Pioneer in fresh‑to‑shelf pepper mix and ofada stew bases, placed in premium supermarket cold chains.", retail_presence:"SPAR, Prince Ebeano, Hubmart, Shoprite.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@omoalata.com"},
+  {brand_id:"EXP-014", name:"The Nut Place", norm_name:"thenutplace", tier:"Expansion", category:"Food", subcategory:"Processed Nuts & Nut Flours", description:"Specialised healthy snacking brand with NAFDAC‑certified processed nuts and nut flours in high‑traffic retail aisles.", retail_presence:"SPAR, Shoprite, HealthPlus, MedPlus.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@thenutplace.com.ng"},
+  {brand_id:"EXP-015", name:"Phizofoods", norm_name:"phizofoods", tier:"Expansion", category:"Food", subcategory:"Peanut Butter & Healthy Spreads", description:"Peanut butter and healthy spreads brand recently secured full NAFDAC certification, expanding across Abuja and Lagos.", retail_presence:"Various supermarkets in Abuja and Lagos.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"phizofoods@gmail.com"},
+  {brand_id:"EXP-016", name:"Labake Skincare", norm_name:"labakeskincare", tier:"Expansion", category:"Personal Care", subcategory:"Science‑based Skincare", description:"High‑engagement organic skincare brand that achieved NAFDAC status for retail shelf scaling.", retail_presence:"Boutique beauty retailers and select supermarket personal care sections.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"hello@labakeskincare.com.ng"},
+  {brand_id:"EXP-017", name:"IsiNaturals", norm_name:"isinaturals", tier:"Expansion", category:"Personal Care", subcategory:"Clinical & Natural Skincare", description:"Clinical and natural skincare brand with global‑standard packaging, NAFDAC approval, and distribution in Lagos beauty hubs.", retail_presence:"Premium skincare outlets and select Lagos supermarkets.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"isinaturalskincare@gmail.com"},
+  {brand_id:"EXP-018", name:"J3 Foods & Stores International", norm_name:"j3storesinternational", tier:"Expansion", category:"Food", subcategory:"Packaged Staples & Distribution", description:"Large‑scale distributor and packager of fast‑moving packaged staples in the Lagos market.", retail_presence:"Major retail chains and regional wholesalers.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"j3foodsandstoresintl@gmail.com"},
+  {brand_id:"EXP-019", name:"LosGlam Beauty", norm_name:"losglambeauty", tier:"Expansion", category:"Personal Care", subcategory:"Beauty & Wellness Products", description:"Beauty and wellness products brand with NAFDAC approval (2025), active in trade fair circuits and expanding into supermarkets.", retail_presence:"Trade fairs and regional beauty retailers.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"losglambeauty@gmail.com"},
+  {brand_id:"EXP-020", name:"Olasum Foods", norm_name:"olasum", tier:"Expansion", category:"Food", subcategory:"Packaged Staples & Grains", description:"High‑volume regional packager of staples and grains in Abeokuta/Lagos with party souvenir supply chains.", retail_presence:"Retail outlets across South‑West Nigeria.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"olasumfoods@gmail.com"},
+  {brand_id:"EXP-021", name:"FoodGrid Groceries", norm_name:"foodgridgroceries", tier:"Expansion", category:"Food", subcategory:"Packaged Foodstuffs & Private Branding", description:"Packaged foodstuffs and private branding company serving Lagos supermarkets and international private‑label clients.", retail_presence:"Supermarkets in Lagos; international \"private label\" clients.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"foodgridgroceries@gmail.com"},
+  {brand_id:"EXP-022", name:"Savory Foods (Savoury Snacks and Meals)", norm_name:"savory", tier:"Expansion", category:"Food", subcategory:"Bakery & Packaged Ready Meals", description:"Iju‑based production facility distributing freshly baked goods to Lagos community retail chains.", retail_presence:"Local supermarkets in Ifako‑Ijaiye and Ojodu.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"savycon558927@gmail.com"},
+  {brand_id:"EXP-023", name:"Kofat Foods (Kofat Food Concepts)", norm_name:"kofat", tier:"Expansion", category:"Food", subcategory:"Processed Tubers & Flours", description:"High‑volume processor of elubo and garri with premium branding for Lagos health‑conscious retail sections.", retail_presence:"SPAR, Prince Ebeano, Hubmart.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"kofatfoodconcepts@gmail.com"},
+  {brand_id:"EXP-024", name:"Gidieats (Gidi Eats Food)", norm_name:"gidieats", tier:"Expansion", category:"Food", subcategory:"Ready‑to‑eat & Packaged Sauces", description:"Transitioned from kitchen service to retail; bottled stew bases are high‑margin and stocked in premium Lagos aisles.", retail_presence:"Prince Ebeano, Hubmart.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"orders@gidieats.com"},
+  {brand_id:"EXP-025", name:"Amuludun Foods", norm_name:"amuludun", tier:"Expansion", category:"Food", subcategory:"Packaged Indigenous Staples", description:"Large‑scale processing plant in Ogun state supplying private‑label staple bags to Shoprite and regional wholesalers.", retail_presence:"Shoprite, various regional wholesalers.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"amuludunfoods@gmail.com"},
+  {brand_id:"EXP-026", name:"Tigernut Republic", norm_name:"tigernutrepublic", tier:"Expansion", category:"Food", subcategory:"Plant‑based Milk & Healthy Snacks", description:"Niche luxury health brand producing plant‑based milk and healthy snacks for premium retail outlets.", retail_presence:"Hubmart, Prince Ebeano, MedPlus.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@tigernutrepublic.com"},
+  {brand_id:"EXP-027", name:"Kalos Snax (Kalos & Kay)", norm_name:"kalossnax", tier:"Expansion", category:"Food", subcategory:"Processed Nuts/Chin‑Chin", description:"Consistent impulse‑buy snack brand placed in checkout aisles of major Lagos supermarkets.", retail_presence:"Prince Ebeano, Hubmart, Blenco.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"kalosandkayfoods@gmail.com"},
+  {brand_id:"EXP-028", name:"Nature's Envy", norm_name:"naturesenvy", tier:"Expansion", category:"Personal Care", subcategory:"Natural Skincare/Body Oils", description:"Natural skincare and body oils brand with heavy retail distribution in supermarket health/beauty sections.", retail_presence:"SPAR, HealthPlus, Shoprite.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"hello@naturesenvy.com.ng"},
+  {brand_id:"EXP-029", name:"Jofez Nigeria Limited", norm_name:"jofez", tier:"Expansion", category:"Household", subcategory:"Cleaning Agents/Detergents", description:"Regional manufacturer of cleaning agents and detergents in the South‑East/South‑South, expanding into budget supermarket chains.", retail_presence:"Markets and regional supermarket chains.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"jofeznigerialtd@gmail.com"},
+  {brand_id:"EXP-030", name:"Ovis Yoghurt", norm_name:"ovisyoghurt", tier:"Expansion", category:"Food", subcategory:"Greek Yogurt", description:"Greek yogurt brand with verified distribution in Prince Ebeano and SPAR, actively recruiting wholesalers.", retail_presence:"Prince Ebeano, SPAR.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"N/A"},
+  {brand_id:"EXP-031", name:"Dios Dlite", norm_name:"diosdlite", tier:"Expansion", category:"Food", subcategory:"Greek & Parfait Yogurt", description:"Greek and parfait yogurt brand with strong presence in Abuja and Lagos retail chains.", retail_presence:"Prince Ebeano, SPAR, Market Square.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@diosdlite.com"},
+  {brand_id:"EXP-032", name:"Mich & Kay", norm_name:"michkay", tier:"Expansion", category:"Food", subcategory:"Greek Yogurt", description:"Sweetened and unsweetened Greek yogurt consistently stocked on online delivery platforms and in Shoprite.", retail_presence:"Shoprite, Supermart.ng.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@michandkay.com"},
+  {brand_id:"EXP-033", name:"Springfield Yogurt", norm_name:"springfieldyogurt", tier:"Expansion", category:"Food", subcategory:"Creamy & Strained Yogurt", description:"Creamy and strained yogurt distributed across major cities like Abuja and Lagos.", retail_presence:"Available in retail stores in Abuja and Lagos.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"N/A"},
+  {brand_id:"EXP-034", name:"La Mon Yogurt", norm_name:"lamonyogurt", tier:"Expansion", category:"Food", subcategory:"Greek Yogurt", description:"High‑volume Greek yogurt sales on retail delivery platforms and in various Lagos supermarkets.", retail_presence:"Supermart.ng, various local supermarkets.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"N/A"},
+  {brand_id:"EXP-035", name:"Cedaa Yoghurt", norm_name:"cedaayoghurt", tier:"Expansion", category:"Food", subcategory:"Flavoured & Unsweetened Yogurt", description:"Growing yogurt brand in Northern Nigeria (Kano/Abuja) with active nationwide distribution expansion.", retail_presence:"Supermarkets in Kano and Abuja.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@cedaayogurt.com"},
+  {brand_id:"EXP-036", name:"Zonni Yogurt (Zonni Foods)", norm_name:"zonniyogurt", tier:"Expansion", category:"Food", subcategory:"Creamy Drinkable Yogurt", description:"Recently achieved NAFDAC approval and is scaling from local distribution to supermarket shelves.", retail_presence:"Scaling into retail stores in Lagos and South‑West.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"zonnifoods@gmail.com"},
+  {brand_id:"EXP-037", name:"Splenda Greek Yogurt", norm_name:"splendagreekyogurt", tier:"Expansion", category:"Food", subcategory:"Sweetened & Unsweetened Greek Yogurt", description:"High visibility on retail platforms and consistent inventory in Prince Ebeano stores.", retail_presence:"Prince Ebeano, Supermart.ng.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"N/A"},
+  {brand_id:"EXP-038", name:"Saladmaster Yogurt (Saladmaster Food & Beverages)", norm_name:"saladmasteryogurt", tier:"Expansion", category:"Food", subcategory:"Drinkable & Greek Yogurt", description:"Dominant regional player in the South‑West with a large fleet of refrigerated vans.", retail_presence:"Shoprite, Justrite, Prince Ebeano, Blenco.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"saladmasteryogurt@gmail.com"},
+  {brand_id:"EXP-039", name:"G-Fresh Yogurt", norm_name:"gfreshyogurt", tier:"Expansion", category:"Food", subcategory:"Drinkable Yogurt", description:"High‑volume drinkable yogurt based in Abuja with significant distribution across North‑Central retail markets.", retail_presence:"Next Cash 'n' Carry, H‑Medix, various Abuja retail outlets.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"gfreshyogurt@gmail.com"},
+  {brand_id:"EXP-040", name:"Vinkay Yogurt (Vinkay Foods)", norm_name:"vinkayyogurt", tier:"Expansion", category:"Food", subcategory:"Greek & Strained Yogurt", description:"Premium Greek and strained yogurt with consistent inventory in high‑end Lekki/Ikoyi supermarkets.", retail_presence:"Hubmart, Prince Ebeano, various Lekki/Ikoyi supermarkets.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"vinkayfoods@gmail.com"},
+  {brand_id:"EXP-041", name:"Yogurt Berry (Berry Yogurt Foods)", norm_name:"yogurtberry", tier:"Expansion", category:"Food", subcategory:"Parfait & Greek Yogurt", description:"Parfait and Greek yogurt brand with high retail turnover in Lagos island supermarkets, focusing on clean labels.", retail_presence:"Prince Ebeano, Hubmart.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"hello@yogurtberryng.com"},
+  {brand_id:"EXP-042", name:"Dewly Yogurt (Dewly Foods)", norm_name:"dewlyyogurt", tier:"Expansion", category:"Food", subcategory:"Strained Greek Yogurt", description:"Lagos‑based strained Greek yogurt that recently scaled into Shoprite and Prince Ebeano with NAFDAC‑registered bottles.", retail_presence:"Shoprite, Prince Ebeano, Market Square.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"dewlyfoods@gmail.com"},
+  {brand_id:"EXP-043", name:"Creamy Yum Yogurt", norm_name:"creamyyumyogurt", tier:"Expansion", category:"Food", subcategory:"Parfait‑style & Greek Yogurt", description:"Parfait‑style and Greek yogurt with high social media engagement and verified retailer list including major Lagos supermarkets.", retail_presence:"SPAR, Prince Ebeano, various pharmacies (MedPlus).", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@creamyyum.com"},
+  {brand_id:"EXP-044", name:"Maun Food (Maun Cheese)", norm_name:"maun", tier:"Expansion", category:"Cheese", subcategory:"Processed & Natural Cheese", description:"One of the few local NAFDAC‑certified cheese manufacturers with consistent shelf space in the dairy section of major supermarkets.", retail_presence:"Shoprite, SPAR, Hubmart.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@maunfood.com"},
+  {brand_id:"EXP-045", name:"Cream Slice (Cream Slice Cakes & Ice Cream)", norm_name:"creamslice", tier:"Expansion", category:"Ice Cream", subcategory:"Artisan Tubs", description:"Premium artisan tubs with consistent stockists in high‑end retail hubs of Lagos Island/Lekki.", retail_presence:"Hubmart, Prince Ebeano.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@creamslice.com"},
+  {brand_id:"EXP-046", name:"Cold Rolls (Rolls & Pints)", norm_name:"coldrolls", tier:"Expansion", category:"Ice Cream", subcategory:"Packaged Pints", description:"Emerging brand that scaled from kiosks to packaged supermarket retail in Lagos.", retail_presence:"Various Lekki/Victoria Island supermarkets.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"coldrollsng@gmail.com"},
+  {brand_id:"EXP-047", name:"Milky Way Ice Cream", norm_name:"milkywayicecream", tier:"Expansion", category:"Ice Cream", subcategory:"Tubs & Cones", description:"Strong presence in the South‑South (Port Harcourt) and expanding into Lagos retail chains.", retail_presence:"Market Square, SPAR (Port Harcourt/Lagos).", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"sales@milkyway.com.ng"},
+  {brand_id:"EXP-048", name:"Haagen-Dazs Nigeria (Official Franchise/Distributor)", norm_name:"haagendazs", tier:"Expansion", category:"Ice Cream", subcategory:"Luxury Pints", description:"High‑volume sales of imported luxury pints through a local Nigerian distributor targeting high‑income retailers.", retail_presence:"Shoprite, Hubmart, Prince Ebeano, SPAR.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@haagendazs.com.ng"},
+  {brand_id:"EXP-049", name:"Yum Yum Ice Cream (Twist & Ice)", norm_name:"yumyumicecream", tier:"Expansion", category:"Ice Cream", subcategory:"Value Tubs", description:"Value‑segment ice cream with high‑volume sales in neighbourhood supermarkets in Lagos and Ogun states.", retail_presence:"Justrite, Addide, regional supermarkets.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@twistandice.com"},
+  {brand_id:"EXP-050", name:"Casanovas (PRWA Ltd)", norm_name:"casanovas", tier:"Expansion", category:"Snacks", subcategory:"Cassava Chips", description:"High‑volume export‑ready cassava chip manufacturer with strong presence in Abuja and Lagos retail.", retail_presence:"SPAR, Shoprite, Hubmart.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@prwa-ltd.com"},
+  {brand_id:"EXP-051", name:"Paddy Paddy Snacks", norm_name:"paddypaddysnacks", tier:"Expansion", category:"Snacks", subcategory:"Chin Chin, Peanuts", description:"High retail turnover of signature \"Paddy Paddy Chin Chin\" packs in major South‑West supermarket chains.", retail_presence:"Justrite, Shoprite, Addide.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"paddypaddysnacks@gmail.com"},
+  {brand_id:"EXP-052", name:"Golden Country (Cansum Foods)", norm_name:"goldencountry", tier:"Expansion", category:"Cereals", subcategory:"Cornflakes, Choco Pops", description:"Wide‑reaching cereal brand positioned as the primary value alternative to Kellogg's in major chains.", retail_presence:"Supermart.ng, SPAR, Prince Ebeano.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@cway.com"},
+  {brand_id:"EXP-053", name:"Emma & Ella Confectionery (E2)", norm_name:"emmaellaconfectionery", tier:"Expansion", category:"Snacks", subcategory:"Plantain Chips, Chin Chin", description:"NAFDAC‑certified export‑ready snack brand (plantain chips, chin chin) supplying premium Lagos retail outlets.", retail_presence:"Hubmart, Prince Ebeano, various airports.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"emmaandellaconf@gmail.com"},
+  {brand_id:"EXP-054", name:"Pachamama Foods", norm_name:"pachamama", tier:"Expansion", category:"Cereals", subcategory:"Tigernut & Dates Mix, Healthy Cereals", description:"Premium health‑focused cereal brand (tigernut & dates mix) with NAFDAC certification and placement in high‑end pharmacies and supermarkets.", retail_presence:"MedPlus, SPAR, Hubmart.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@pachamamafoodsng.com"},
+  {brand_id:"EXP-055", name:"Infinity Foods (Infinity Cornflakes)", norm_name:"infinity", tier:"Expansion", category:null, subcategory:null, description:"Significant presence in Lagos supermarkets with multiple sizes including budget sachets.", retail_presence:"Prince Ebeano, Market Square, Justrite.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@infinityfoods.com.ng"},
+  {brand_id:"EXP-056", name:"Unique Foods (Unique Chin Chin)", norm_name:"unique", tier:"Expansion", category:"Snacks", subcategory:"Chin Chin", description:"High‑volume gourmet snack brand with dedicated distribution in Lagos premium supermarkets.", retail_presence:"Hubmart, Prince Ebeano, Savemart.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"uniquefoodsng@gmail.com"},
+  {brand_id:"EXP-057", name:"Bubez Foods (Bubez Pap)", norm_name:"bubez", tier:"Expansion", category:"Cereals", subcategory:"Processed Frozen Pap/Cereal Mixes", description:"Market leader in processed ready‑to‑cook pap category with massive nationwide retail presence.", retail_presence:"Shoprite, Prince Ebeano, SPAR, Market Square.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@bubezfoods.com"},
+  {brand_id:"EXP-058", name:"Lady B Custard (Lady B Foods)", norm_name:"ladybcustard", tier:"Expansion", category:"Cereals/Staples", subcategory:"Custard Powder", description:"Household name in the custard category with near‑ubiquitous shelf presence in Nigerian supermarkets.", retail_presence:"Shoprite, Justrite, SPAR, Addide.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@ladybfoods.com"},
+  {brand_id:"EXP-059", name:"Nim's Snacks (Nim's Foods Limited)", norm_name:"nimssnacks", tier:"Expansion", category:"Snacks", subcategory:"Plantain Chips, Potato Chips, Chin Chin", description:"High‑volume impulse‑buy snack brand with professional packaging and consistent stock in major Lagos retail checkout aisles.", retail_presence:"Shoprite, Hubmart, Prince Ebeano, various pharmacies.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@nimssnacks.com"},
+  {brand_id:"EXP-060", name:"Tooms Snacks", norm_name:"toomssnacks", tier:"Expansion", category:"Snacks", subcategory:"Gourmet Chin Chin & Peanuts", description:"Emerging gourmet chin chin and peanuts brand targeting high‑income retail shoppers in Lekki and Victoria Island.", retail_presence:"Prince Ebeano, Hubmart, Market Square.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"toomssnacks@gmail.com"},
+  {brand_id:"EXP-061", name:"Captain Cook", norm_name:"captaincook", tier:"Expansion", category:"Snacks", subcategory:"Pastries & Packaged Chin Chin", description:"Massive regional dominance in the North‑Central/Abuja market for packaged pastries and chin chin.", retail_presence:"H‑Medix, Next Cash 'n' Carry, various Abuja supermarkets.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@captaincook.com.ng"},
+  {brand_id:"EXP-062", name:"O'Natural Snacks", norm_name:"onaturalsnacks", tier:"Expansion", category:"Snacks", subcategory:"Health‑conscious Granola & Nut Mixes", description:"Specialised healthy snack (granola & nut mixes) with NAFDAC approval and premium pricing in retail outlets.", retail_presence:"MedPlus, HealthPlus, Hubmart, Prince Ebeano.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"onaturalsnacks@gmail.com"},
+  {brand_id:"EXP-063", name:"Cheer's Chin Chin", norm_name:"cheerschinchin", tier:"Expansion", category:"Snacks", subcategory:"Chin Chin Tubs", description:"Long‑term presence in major supermarket chains with family‑sized chin chin tubs that move quickly in urban centres.", retail_presence:"SPAR, Justrite, Shoprite.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"cheerssnack@gmail.com"},
+  {brand_id:"EXP-064", name:"Snakito (Bofas Foods)", norm_name:"snakito", tier:"Expansion", category:"Snacks", subcategory:"Cheese Balls, Corn Snacks, Popcorn", description:"High‑volume kid‑focused snack brand (cheese balls, corn snacks, popcorn) with extensive distribution in neighbourhood supermarkets.", retail_presence:"Justrite, Addide, various South‑West supermarkets.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"bofasfoods@gmail.com"},
+  {brand_id:"EXP-065", name:"Adunni Snacks", norm_name:"adunnisnacks", tier:"Expansion", category:"Snacks", subcategory:"Plantain Chips & Kuli‑Kuli", description:"Premium packaging of traditional snacks (plantain chips & kuli‑kuli) allowing placement in high‑street supermarket aisles.", retail_presence:"Hubmart, Prince Ebeano.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"adunnisnacks@gmail.com"},
+  {brand_id:"EXP-066", name:"Major Biscuits (Major Foods)", norm_name:"majorbiscuits", tier:"Expansion", category:"Snacks", subcategory:"Biscuits & Crackers", description:"Rapidly expanding Lagos‑based manufacturer focusing on the budget sachet biscuit market, driving volume through supermarkets.", retail_presence:"Justrite, Blenco, local wholesalers.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"majorfoodslimited@gmail.com"},
+  {brand_id:"EXP-067", name:"Real Fruit Snacks (Tropical Foods)", norm_name:"realfruitsnacks", tier:"Expansion", category:"Snacks", subcategory:"Fruit Chips & Rolls", description:"High‑value‑per‑unit healthy snack alternative (fruit chips & rolls) found in premium retail health sections.", retail_presence:"Shoprite, Hubmart, HealthPlus.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@realfruits.com.ng"},
+  {brand_id:"EXP-068", name:"Baby Grubz Nigeria", norm_name:"babygrubz", tier:"Expansion", category:"Food", subcategory:"Natural Baby Cereals & Nutritious Mixes", description:"Key domestic player in the Nigerian baby food market, offering natural baby cereals and nutritious mixes.", retail_presence:"Shoprite, Hubmart, Prince Ebeano, and various online retailers.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@babygrubz.com"},
+  {brand_id:"EXP-069", name:"Hilsnosh Foods (Chow Foods Nigeria)", norm_name:"hilsnosh", tier:"Expansion", category:"Food", subcategory:"Instant Cereals & Beans Flour", description:"Instant cereals and beans flour brand that recently rebranded and expanded into Shoprite outlets nationwide.", retail_presence:"Shoprite (Lagos, Abuja, Ibadan, Kwara) and various distributors.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@chowfoodsnigeria.com.ng"},
+  {brand_id:"EXP-070", name:"My Boy Baby Food (Eldorin)", norm_name:"myboybaby", tier:"Expansion", category:"Food", subcategory:"Infant Formula", description:"Established niche infant formula brand with verified retail listings in pharmacies and online supermarkets.", retail_presence:"Supermart.ng, select pharmacies.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@eldorin.com"},
+  {brand_id:"EXP-071", name:"Frisogrow (FrieslandCampina)", norm_name:"frisogrow", tier:"Expansion", category:"Food", subcategory:"Growing Up Milk", description:"Premium growing‑up milk brand with strong presence in high‑traffic supermarkets like Prince Ebeano.", retail_presence:"Shoprite, Prince Ebeano, Hubmart.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@friso.com.ng"},
+  {brand_id:"EXP-072", name:"Gotea Limited", norm_name:"gotea", tier:"Expansion", category:"Beverages", subcategory:"Herbal Tea", description:"Produces a large variety of NAFDAC‑certified herbal and wellness teas widely distributed in major supermarket health aisles.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"goteagalt@gmail.com"},
+  {brand_id:"EXP-073", name:"Crystal Love International", norm_name:"crystalloveinternational", tier:"Expansion", category:"Food & Household", subcategory:null, description:"A fast‑growing brand in the food and household sector with heavy penetration in SPAR Nigeria and Blenco.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"crystalloveintl@gmail.com"},
+  {brand_id:"EXP-074", name:"ClearNature Products", norm_name:"clearnatureproducts", tier:"Expansion", category:"Personal Care", subcategory:"Cosmetics", description:"A cosmetics brand with strong shelf presence in the dedicated beauty sections of modern Nigerian supermarkets.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"clearnatureng@gmail.com"},
+  {brand_id:"EXP-075", name:"Pure Hygiene Limited", norm_name:"purehygiene", tier:"Expansion", category:"Household", subcategory:"Cleaning", description:"A manufacturing company focused on household cleaning agents and institutional hygiene products sold through retail channels.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"md@purehygiene.com"},
+  {brand_id:"EXP-076", name:"Farm Pride (Niyya Food & Drinks)", norm_name:"pride", tier:"Expansion", category:"Dairy & Juices", subcategory:null, description:"Produces natural yogurt and fresh fruit juices widely distributed in Lagos and Northern Nigeria.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@niyyagroup.com"},
+  {brand_id:"EXP-077", name:"Eve's Organics", norm_name:"evesorganics", tier:"Expansion", category:"Food", subcategory:"Juices & Yogurt", description:"Specializes in cold‑pressed juices and probiotic Greek yogurts found in major wellness‑focused retail outlets.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"evesorganicsltd@gmail.com"},
+  {brand_id:"EXP-078", name:"Cedar D' Vine", norm_name:"cedardvine", tier:"Expansion", category:"Beverages", subcategory:"Yogurt Drinks", description:"An emerging manufacturer of specialized yogurt drinks and fruit‑based beverages.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"cedardvine@gmail.com"},
+  {brand_id:"EXP-079", name:"Debrah's Chin-Chin", norm_name:"debrahschinchin", tier:"Expansion", category:"Snacks", subcategory:"Chin Chin", description:"A specialized snack brand that has successfully moved from artisanal to industrial scale, found in Shoprite.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"debrahschinchin@gmail.com"},
+  {brand_id:"EXP-080", name:"Halibiz Industries", norm_name:"halibiz", tier:"Expansion", category:"Food", subcategory:"Packaged Staples", description:"Manufacturers of diverse packaged foods including cereals, snacks, and beverage powders.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@halibiz.com"},
+  {brand_id:"EXP-081", name:"Limlim Foods", norm_name:"limlim", tier:"Expansion", category:"Snacks", subcategory:null, description:"Specializes in traditionally inspired but modern‑packaged snacks and processed food items.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"limlimfoods@gmail.com"},
+  {brand_id:"EXP-082", name:"Maventosh Ventures", norm_name:"maventoshventures", tier:"Expansion", category:"Food", subcategory:"Grains", description:"A specialized distributor and packager of healthy grains like Acha (Fonio) and Quinoa for the Nigerian retail market.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"maventoshventures@gmail.com"},
+  {brand_id:"EXP-083", name:"Amal Yoghurt", norm_name:"amalyoghurt", tier:"Expansion", category:"Dairy", subcategory:"Yogurt", description:"Produces high‑quality, NAFDAC‑certified creamy yoghurts and dairy beverages with a strong northern and southern distribution network.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"contact@amalyoghurt.com"},
+  {brand_id:"EXP-084", name:"D'Sade Dairy", norm_name:"dsadedairy", tier:"Expansion", category:"Dairy", subcategory:"Yogurt", description:"A boutique but rapidly scaling yoghurt brand found in premium health sections of Lagos supermarkets.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"dsadedairy@gmail.com"},
+  {brand_id:"EXP-085", name:"Depectrez Food and Beverages", norm_name:"depectrezandbeverages", tier:"Expansion", category:"Food", subcategory:"Parfaits", description:"Manufacturers of premium fruit‑based parfaits and dairy combos found in urban retail outlets.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"depectrezfoods@gmail.com"},
+  {brand_id:"EXP-086", name:"Wilson's Juice Co", norm_name:"wilsonsjuice", tier:"Expansion", category:"Beverages", subcategory:"Juice", description:"Known for their bottled old‑fashioned lemonade and juice blends found in almost all major Nigerian supermarkets.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"hello@wilsonsjuiceco.com"},
+  {brand_id:"EXP-087", name:"Tiger Beverages", norm_name:"tigerbeverages", tier:"Expansion", category:"Beverages", subcategory:"Energy Drinks", description:"Produces diverse energy drinks and fruit‑flavored beverages targeted at the mid‑market supermarket tier.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@tigerbeverages.com"},
+  {brand_id:"EXP-088", name:"Nobu Care (Nobu Snacks)", norm_name:"nobucare", tier:"Expansion", category:"Snacks", subcategory:"Plantain Chips & Nuts", description:"Manufactures premium quality packaged snacks including plantain chips and nuts.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"nobucares@gmail.com"},
+  {brand_id:"EXP-089", name:"Kume Foods", norm_name:"kume", tier:"Expansion", category:"Food", subcategory:"Pap & Snacks", description:"Specializes in hygienically packaged indigenous delicacies like fortified Pap (Ogi) and legume‑based snacks.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"kumefoods@gmail.com"},
+  {brand_id:"EXP-090", name:"Akarachips", norm_name:"akarachips", tier:"Expansion", category:"Snacks", subcategory:"Akara Chips", description:"An innovative brand turning Akara into a shelf‑stable, packaged retail snack found in Lagos stores.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"akarachips@gmail.com"},
+  {brand_id:"EXP-091", name:"Foodpro Limited", norm_name:"foodpro", tier:"Expansion", category:"Snacks", subcategory:"Nuts", description:"Industrial‑scale processor of premium packaged cashew nuts and kernel‑based snacks.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@foodpro.com.ng"},
+  {brand_id:"EXP-092", name:"Graceco Industries", norm_name:"graceco", tier:"Expansion", category:"Snacks", subcategory:"Confectionery", description:"Large‑scale manufacturers of diverse confectionery and bakery products for the retail market.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"graceco@graceco.com"},
+  {brand_id:"EXP-093", name:"Regalo Kitchen", norm_name:"regalokitchen", tier:"Expansion", category:"Snacks", subcategory:"Confectionery", description:"Specializes in high‑end confectionery and packaged kitchen treats found in supermarket gift sections.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"regalokitchen@gmail.com"},
+  {brand_id:"EXP-094", name:"Nature Sip", norm_name:"naturesip", tier:"Expansion", category:"Food", subcategory:"Yogurt & Parfait", description:"A premium parfait and yogurt company based in Lagos, specializing in Greek yogurt, parfaits, and healthy beverages.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"naturesiptreatsng@gmail.com"},
+  {brand_id:"EXP-095", name:"Fruit Basket", norm_name:"fruitbasket", tier:"Expansion", category:"Food", subcategory:"Fruits", description:"Curates seasonal fruit baskets, hampers, and high‑quality local fruits, primarily in Lagos.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"None provided"},
+  {brand_id:"EXP-096", name:"Nuli Foods", norm_name:"nuli", tier:"Expansion", category:"Food", subcategory:"Juices & Meals", description:"A \"fast‑casual\" health food brand specializing in fresh cold‑pressed juices, smoothies, and nourishing meals.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@nulifoods.com"},
+  {brand_id:"EXP-097", name:"Sweetkiwi", norm_name:"sweetkiwi", tier:"Expansion", category:"Food", subcategory:"Frozen Yogurt", description:"An artisan creamery offering soft‑serve frozen yogurt and Greek yogurt parfaits with over 100 flavours.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@sweetkiwiyogurt.com"},
+  {brand_id:"EXP-098", name:"Supreme Ice Cream", norm_name:"supremeicecream", tier:"Expansion", category:"Ice Cream", subcategory:null, description:"A popular retail ice cream brand under UAC Foods, widely available in modern supermarkets and local stores across Nigeria.", retail_presence:"Not provided.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@uac-foods.com"},
+  {brand_id:"EMR-001", name:"Grand Cereals Limited", norm_name:"grandcereals", tier:"Emerging", category:"Food", subcategory:"Cereals", description:"A major cereal manufacturer producing a variety of breakfast cereals and grains for the Nigerian market.", retail_presence:null, location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@grandcereals.com"},
+  {brand_id:"EMR-002", name:"Tummy Tummy Noodles", norm_name:"tummytummynoodles", tier:"Emerging", category:"Food", subcategory:"Noodles", description:"A popular instant noodle brand known for its affordable and tasty noodle products.", retail_presence:null, location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"info@tummytummyfoods.com"},
+  {brand_id:"EMR-003", name:"Pomo Tomatoes", norm_name:"pomotomatoes", tier:"Emerging", category:"Food", subcategory:"Tomato Paste/Sauces", description:"A brand specializing in tomato pastes and purees, providing quality tomato products for everyday cooking.", retail_presence:null, location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"consumerhelp@thegbfoods.com"},
+  {brand_id:"EMR-004", name:"ADD ME", norm_name:"addme", tier:"Emerging", category:"Consumer Goods", subcategory:null, description:"A consumer goods brand offering innovative products for daily use.", retail_presence:null, location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"contact@admee.ng"},
+  {brand_id:"EMR-005", name:"Lomeeda Fresh", norm_name:"lomeedafresh", tier:"Emerging", category:"Food", subcategory:"Dairy/Juice", description:"A brand focused on fresh dairy or juice products, delivering natural and healthy options.", retail_presence:null, location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"lomeedafresh@gmail.com"},
+  {brand_id:"EMR-006", name:"Pemnia Wellness", norm_name:"pemniawellness", tier:"Emerging", category:"Personal Care", subcategory:"Wellness", description:"A wellness brand offering health supplements and natural personal care products.", retail_presence:null, location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"pemniawellness@gmail.com"},
+  {brand_id:"EMR-007", name:"Glacier Cubes", norm_name:"glaciercubes", tier:"Emerging", category:"Food", subcategory:"Ice", description:"A producer of high‑quality ice cubes for retail and commercial customers, ensuring purity and consistency.", retail_presence:null, location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"legmaceicemanenterprise@gmail.com"},
+  {brand_id:"EMR-008", name:"Fauzziyah's Honey Ltd", norm_name:"fauzziyahshoney", tier:"Emerging", category:"Food", subcategory:"Honey", description:"A producer of high‑quality honey for retail", retail_presence:null, location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"fauzziyahshoney@gmail.com"},
+  {brand_id:"EMR-009", name:"El Gazelle Kilishi", norm_name:"elgazellekilishi", tier:"Emerging", category:"Food", subcategory:"Beef Kilishi, Chicken Kilishi", description:"A producer of different kilishi", retail_presence:null, location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"osato.elosemwingie@gmail.com"},
+  {brand_id:"EMR-010", name:"Green and Grill House", norm_name:"greenandgrillhouse", tier:"Emerging", category:"Yoghurt", subcategory:null, description:"A producer of yoghurt", retail_presence:"Up to 50 stores including spar.", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"greengrillhouse@gmail.com"},
+  {brand_id:"EMR-011", name:"Amal Botanicals", norm_name:"amalbotanicals", tier:"Emerging", category:null, subcategory:null, description:"Category:", retail_presence:null, location:null, revenue:null, lead_status:null, latest_note:null, primary_email:null},
+  {brand_id:"EMR-012", name:"Dios Dlite", norm_name:"diosdlite", tier:"Emerging", category:null, subcategory:null, description:"Category:", retail_presence:null, location:null, revenue:null, lead_status:null, latest_note:null, primary_email:null},
+  {brand_id:"EMR-013", name:"Green Baskit (Mimundo)", norm_name:"greenbaskit", tier:"Emerging", category:null, subcategory:null, description:"Category:", retail_presence:null, location:null, revenue:null, lead_status:null, latest_note:null, primary_email:null},
+  {brand_id:"EMR-014", name:"Chime Foods Limited", norm_name:"chime", tier:"Emerging", category:"Food", subcategory:null, description:"Producer of different type of products", retail_presence:"Only on Island (Ebeano inclusive)", location:null, revenue:null, lead_status:null, latest_note:null, primary_email:"greengrillhouse@gmail.com"},
+];
+
+const SEED_BRAND_PHONES = [
+  {brand_id:"ENT-001", phone:"+2348101416972", label:null, is_primary:true},
+  {brand_id:"ENT-001", phone:"+2349139389522", label:null, is_primary:false},
+  {brand_id:"ENT-001", phone:"+2349011706568", label:null, is_primary:false},
+  {brand_id:"ENT-001", phone:"+234806292924", label:null, is_primary:false},
+  {brand_id:"ENT-001", phone:"+2347024723016", label:null, is_primary:false},
+  {brand_id:"ENT-002", phone:"+234700844373663", label:null, is_primary:true},
+  {brand_id:"ENT-002", phone:"+2349030006400", label:null, is_primary:false},
+  {brand_id:"ENT-003", phone:"+2348070500158", label:null, is_primary:true},
+  {brand_id:"ENT-003", phone:"+2348039758631", label:null, is_primary:false},
+  {brand_id:"ENT-004", phone:"+2347042222233", label:null, is_primary:true},
+  {brand_id:"ENT-004", phone:"+2348028179710", label:null, is_primary:false},
+  {brand_id:"ENT-005", phone:"+2348023157938", label:"WhatsApp", is_primary:true},
+  {brand_id:"ENT-005", phone:"+2348089242136", label:null, is_primary:false},
+  {brand_id:"ENT-006", phone:"+2348188950380", label:null, is_primary:true},
+  {brand_id:"ENT-006", phone:"+2348079680630", label:null, is_primary:false},
+  {brand_id:"ENT-007", phone:"+23490330319017279070", label:"+234", is_primary:true},
+  {brand_id:"ENT-008", phone:"+2348033708154", label:null, is_primary:true},
+  {brand_id:"ENT-009", phone:"+2347058894440", label:null, is_primary:true},
+  {brand_id:"ENT-009", phone:"+2347058894452", label:null, is_primary:false},
+  {brand_id:"ENT-010", phone:"+2349062447839", label:null, is_primary:true},
+  {brand_id:"ENT-010", phone:"+2347034101738", label:null, is_primary:false},
+  {brand_id:"ENT-010", phone:"+2349038862224", label:null, is_primary:false},
+  {brand_id:"ENT-010", phone:"+2349038862225", label:null, is_primary:false},
+  {brand_id:"ENT-010", phone:"+2349038862226", label:null, is_primary:false},
+  {brand_id:"ENT-011", phone:"+2348172007131", label:null, is_primary:true},
+  {brand_id:"ENT-012", phone:"+2348107408283", label:null, is_primary:true},
+  {brand_id:"ENT-012", phone:"+2349015883770", label:null, is_primary:false},
+  {brand_id:"ENT-013", phone:"+2348023157522", label:null, is_primary:true},
+  {brand_id:"ENT-014", phone:"+2348003266455", label:null, is_primary:true},
+  {brand_id:"ENT-015", phone:"+2348057747777", label:null, is_primary:true},
+  {brand_id:"ENT-016", phone:"+2342012715100", label:null, is_primary:true},
+  {brand_id:"ENT-017", phone:"+2348009778880", label:null, is_primary:true},
+  {brand_id:"ENT-018", phone:"+2347039806526", label:null, is_primary:true},
+  {brand_id:"ENT-019", phone:"+2348033333333", label:null, is_primary:true},
+  {brand_id:"ENT-020", phone:"+2348081905190", label:null, is_primary:true},
+  {brand_id:"ENT-021", phone:"+2348035222045", label:null, is_primary:true},
+  {brand_id:"ENT-022", phone:"+2349081699892", label:null, is_primary:true},
+  {brand_id:"ENT-022", phone:"+2347074823760", label:null, is_primary:false},
+  {brand_id:"ENT-023", phone:"+2348003437667", label:null, is_primary:true},
+  {brand_id:"ENT-024", phone:"+2348095999000", label:null, is_primary:true},
+  {brand_id:"ENT-025", phone:"+2348161674349", label:null, is_primary:true},
+  {brand_id:"ENT-025", phone:"+2348100918181", label:null, is_primary:false},
+  {brand_id:"ENT-025", phone:"+2349085610722", label:null, is_primary:false},
+  {brand_id:"ENT-026", phone:"+2347025262626", label:null, is_primary:true},
+  {brand_id:"ENT-027", phone:"+2348085297635", label:null, is_primary:true},
+  {brand_id:"ENT-029", phone:"+2349053804042", label:null, is_primary:true},
+  {brand_id:"ENT-029", phone:"+2349053804050", label:"updated", is_primary:false},
+  {brand_id:"ENT-030", phone:"+2348093000000", label:"no new number", is_primary:true},
+  {brand_id:"ENT-031", phone:"+2348063092282", label:null, is_primary:true},
+  {brand_id:"ENT-031", phone:"+2349032750185", label:null, is_primary:false},
+  {brand_id:"ENT-032", phone:"+2349077771879", label:null, is_primary:true},
+  {brand_id:"ENT-032", phone:"+234806534313", label:null, is_primary:false},
+  {brand_id:"ENT-033", phone:"+2348161853456", label:null, is_primary:true},
+  {brand_id:"ENT-034", phone:"+2348157030529", label:"+234", is_primary:true},
+  {brand_id:"ENT-035", phone:"+2348038395953", label:"no new number", is_primary:true},
+  {brand_id:"EXP-001", phone:"+2347059508080", label:null, is_primary:true},
+  {brand_id:"EXP-002", phone:"+2347039081523", label:null, is_primary:true},
+  {brand_id:"EXP-003", phone:"+2349061524559", label:null, is_primary:true},
+  {brand_id:"EXP-003", phone:"+2349138840360", label:null, is_primary:false},
+  {brand_id:"EXP-004", phone:"+2348033251932", label:null, is_primary:true},
+  {brand_id:"EXP-005", phone:"+2348068569944", label:null, is_primary:true},
+  {brand_id:"EXP-005", phone:"+2348060383377", label:null, is_primary:false},
+  {brand_id:"EXP-006", phone:"+2348033333333", label:null, is_primary:true},
+  {brand_id:"EXP-007", phone:"+2348035123036", label:null, is_primary:true},
+  {brand_id:"EXP-008", phone:"+2347034114444", label:null, is_primary:true},
+  {brand_id:"EXP-008", phone:"+2348170001111", label:null, is_primary:false},
+  {brand_id:"EXP-009", phone:"+2348182963388", label:null, is_primary:true},
+  {brand_id:"EXP-010", phone:"+2348023023023", label:null, is_primary:true},
+  {brand_id:"EXP-010", phone:"+2348033000000", label:null, is_primary:false},
+  {brand_id:"EXP-011", phone:"+2348025213600", label:null, is_primary:true},
+  {brand_id:"EXP-012", phone:"+2348064949575", label:null, is_primary:true},
+  {brand_id:"EXP-013", phone:"+2349086312809", label:null, is_primary:true},
+  {brand_id:"EXP-013", phone:"+2348091110000", label:null, is_primary:false},
+  {brand_id:"EXP-014", phone:"+2348098383535", label:null, is_primary:true},
+  {brand_id:"EXP-015", phone:"+2348168285558", label:null, is_primary:true},
+  {brand_id:"EXP-016", phone:"+2347034924925", label:null, is_primary:true},
+  {brand_id:"EXP-017", phone:"+2349053913000", label:null, is_primary:true},
+  {brand_id:"EXP-018", phone:"+2349112964624", label:null, is_primary:true},
+  {brand_id:"EXP-018", phone:"+2349037927108", label:null, is_primary:false},
+  {brand_id:"EXP-019", phone:"+2348144000305", label:null, is_primary:true},
+  {brand_id:"EXP-020", phone:"+2347030843871", label:null, is_primary:true},
+  {brand_id:"EXP-021", phone:"+2347015169936", label:null, is_primary:true},
+  {brand_id:"EXP-021", phone:"+2349133443380", label:null, is_primary:false},
+  {brand_id:"EXP-022", phone:"+2348034768983", label:null, is_primary:true},
+  {brand_id:"EXP-022", phone:"+2348083001012", label:null, is_primary:false},
+  {brand_id:"EXP-023", phone:"+2348064434220", label:null, is_primary:true},
+  {brand_id:"EXP-024", phone:"+2348123286431", label:null, is_primary:true},
+  {brand_id:"EXP-025", phone:"+2348035222045", label:null, is_primary:true},
+  {brand_id:"EXP-025", phone:"+2348182220025", label:null, is_primary:false},
+  {brand_id:"EXP-026", phone:"+2348034038814", label:null, is_primary:true},
+  {brand_id:"EXP-027", phone:"+2348023157522", label:null, is_primary:true},
+  {brand_id:"EXP-028", phone:"+2348023450000", label:null, is_primary:true},
+  {brand_id:"EXP-028", phone:"+2348188188188", label:null, is_primary:false},
+  {brand_id:"EXP-029", phone:"+2348033221314", label:null, is_primary:true},
+  {brand_id:"EXP-030", phone:"+2348184871079", label:null, is_primary:true},
+  {brand_id:"EXP-031", phone:"+2348130000000", label:null, is_primary:true},
+  {brand_id:"EXP-032", phone:"+2348140000000", label:null, is_primary:true},
+  {brand_id:"EXP-032", phone:"+2348035403512", label:null, is_primary:false},
+  {brand_id:"EXP-032", phone:"+2348162472977", label:null, is_primary:false},
+  {brand_id:"EXP-033", phone:"+2348160000000", label:null, is_primary:true},
+  {brand_id:"EXP-034", phone:"+2348030000000", label:null, is_primary:true},
+  {brand_id:"EXP-035", phone:"+2348097478089", label:null, is_primary:true},
+  {brand_id:"EXP-035", phone:"+2348147476027", label:null, is_primary:false},
+  {brand_id:"EXP-036", phone:"+2348120000000", label:null, is_primary:true},
+  {brand_id:"EXP-037", phone:"+2348150000000", label:null, is_primary:true},
+  {brand_id:"EXP-038", phone:"+2348033045610", label:null, is_primary:true},
+  {brand_id:"EXP-038", phone:"+2348023126466", label:null, is_primary:false},
+  {brand_id:"EXP-039", phone:"+2348035974441", label:null, is_primary:true},
+  {brand_id:"EXP-040", phone:"+2348182967667", label:null, is_primary:true},
+  {brand_id:"EXP-041", phone:"+2348092244222", label:null, is_primary:true},
+  {brand_id:"EXP-042", phone:"+2348122244433", label:null, is_primary:true},
+  {brand_id:"EXP-043", phone:"+2348170000000", label:null, is_primary:true},
+  {brand_id:"EXP-043", phone:"+2348061111111", label:null, is_primary:false},
+  {brand_id:"EXP-044", phone:"+2348033005526", label:null, is_primary:true},
+  {brand_id:"EXP-045", phone:"+2348125444555", label:null, is_primary:true},
+  {brand_id:"EXP-046", phone:"+2348180005075", label:null, is_primary:true},
+  {brand_id:"EXP-047", phone:"+2349060007825", label:null, is_primary:true},
+  {brand_id:"EXP-048", phone:"+2348188009595", label:null, is_primary:true},
+  {brand_id:"EXP-049", phone:"+2348090001234", label:null, is_primary:true},
+  {brand_id:"EXP-050", phone:"+2347038880268", label:null, is_primary:true},
+  {brand_id:"EXP-051", phone:"+2348123456789", label:null, is_primary:true},
+  {brand_id:"EXP-052", phone:"+2348023157522", label:null, is_primary:true},
+  {brand_id:"EXP-053", phone:"+2348061111111", label:null, is_primary:true},
+  {brand_id:"EXP-054", phone:"+2348182224444", label:null, is_primary:true},
+  {brand_id:"EXP-054", phone:"+2348093000033", label:null, is_primary:false},
+  {brand_id:"EXP-055", phone:"+2348033333333", label:null, is_primary:true},
+  {brand_id:"EXP-056", phone:"+2348177777777", label:null, is_primary:true},
+  {brand_id:"EXP-057", phone:"+2348182223333", label:null, is_primary:true},
+  {brand_id:"EXP-058", phone:"+2348033004444", label:null, is_primary:true},
+  {brand_id:"EXP-059", phone:"+2348182967667", label:null, is_primary:true},
+  {brand_id:"EXP-060", phone:"+2348033221314", label:null, is_primary:true},
+  {brand_id:"EXP-061", phone:"+2348103333333", label:null, is_primary:true},
+  {brand_id:"EXP-062", phone:"+2349053913000", label:null, is_primary:true},
+  {brand_id:"EXP-063", phone:"+2348122244433", label:null, is_primary:true},
+  {brand_id:"EXP-064", phone:"+2348064434220", label:null, is_primary:true},
+  {brand_id:"EXP-065", phone:"+2348023157522", label:null, is_primary:true},
+  {brand_id:"EXP-066", phone:"+2347015169936", label:null, is_primary:true},
+  {brand_id:"EXP-067", phone:"+2348092244222", label:null, is_primary:true},
+  {brand_id:"EXP-068", phone:"+2348020967399", label:null, is_primary:true},
+  {brand_id:"EXP-069", phone:"+2348068382936", label:null, is_primary:true},
+  {brand_id:"EXP-069", phone:"+2348173586592", label:null, is_primary:false},
+  {brand_id:"EXP-069", phone:"+2347068430718", label:null, is_primary:false},
+  {brand_id:"EXP-070", phone:"+2348160000000", label:null, is_primary:true},
+  {brand_id:"EXP-071", phone:"+2348003266455", label:null, is_primary:true},
+  {brand_id:"EXP-072", phone:"+2347014600005", label:null, is_primary:true},
+  {brand_id:"EXP-073", phone:"+2348034000000", label:null, is_primary:true},
+  {brand_id:"EXP-074", phone:"+2348067700006", label:null, is_primary:true},
+  {brand_id:"EXP-075", phone:"+2348106000000", label:null, is_primary:true},
+  {brand_id:"EXP-076", phone:"+2348150849461", label:null, is_primary:true},
+  {brand_id:"EXP-077", phone:"+2348165294889", label:null, is_primary:true},
+  {brand_id:"EXP-077", phone:"+2349071142555", label:null, is_primary:false},
+  {brand_id:"EXP-078", phone:"+2348095551234", label:null, is_primary:true},
+  {brand_id:"EXP-079", phone:"+2348034567890", label:null, is_primary:true},
+  {brand_id:"EXP-080", phone:"+2349087654321", label:null, is_primary:true},
+  {brand_id:"EXP-081", phone:"+2348051112222", label:null, is_primary:true},
+  {brand_id:"EXP-081", phone:"+2348099972019", label:null, is_primary:false},
+  {brand_id:"EXP-082", phone:"+2348060114678", label:null, is_primary:true},
+  {brand_id:"EXP-083", phone:"+2347033701714", label:null, is_primary:true},
+  {brand_id:"EXP-084", phone:"+2348023334444", label:null, is_primary:true},
+  {brand_id:"EXP-085", phone:"+2348051234567", label:null, is_primary:true},
+  {brand_id:"EXP-086", phone:"+2348023456789", label:null, is_primary:true},
+  {brand_id:"EXP-087", phone:"+2348037778888", label:null, is_primary:true},
+  {brand_id:"EXP-088", phone:"+2348167758140", label:null, is_primary:true},
+  {brand_id:"EXP-089", phone:"+2348032007936", label:null, is_primary:true},
+  {brand_id:"EXP-090", phone:"+2348123456789", label:null, is_primary:true},
+  {brand_id:"EXP-091", phone:"+2348029990000", label:null, is_primary:true},
+  {brand_id:"EXP-092", phone:"+2348012223333", label:null, is_primary:true},
+  {brand_id:"EXP-093", phone:"+2348065556666", label:null, is_primary:true},
+  {brand_id:"EXP-094", phone:"+2349077598416", label:null, is_primary:true},
+  {brand_id:"EXP-094", phone:"+2349072838266", label:null, is_primary:false},
+  {brand_id:"EXP-094", phone:"+2349077598415", label:null, is_primary:false},
+  {brand_id:"EXP-094", phone:"+2348055186832", label:null, is_primary:false},
+  {brand_id:"EXP-095", phone:"+2349032988180", label:null, is_primary:true},
+  {brand_id:"EXP-095", phone:"+2348135846502", label:null, is_primary:false},
+  {brand_id:"EXP-096", phone:"+2349060653129", label:null, is_primary:true},
+  {brand_id:"EXP-096", phone:"+2348179274442", label:null, is_primary:false},
+  {brand_id:"EXP-096", phone:"+2348090651067", label:null, is_primary:false},
+  {brand_id:"EXP-096", phone:"+2349137494041", label:null, is_primary:false},
+  {brand_id:"EXP-097", phone:"+2349083000869", label:null, is_primary:true},
+  {brand_id:"EXP-097", phone:"+2349095528969", label:null, is_primary:false},
+  {brand_id:"EXP-097", phone:"+17803945184", label:null, is_primary:false},
+  {brand_id:"EXP-097", phone:"+2348056117829", label:null, is_primary:false},
+  {brand_id:"EXP-097", phone:"+2348026495791", label:null, is_primary:false},
+  {brand_id:"EXP-097", phone:"+2347009852868", label:null, is_primary:false},
+  {brand_id:"EXP-098", phone:"+2347007774992", label:null, is_primary:true},
+  {brand_id:"EXP-098", phone:"+2348054601625", label:null, is_primary:false},
+  {brand_id:"EXP-098", phone:"+2348003334444", label:null, is_primary:false},
+  {brand_id:"EMR-001", phone:"+2347000000999", label:null, is_primary:true},
+  {brand_id:"EMR-002", phone:"+2347030000385", label:null, is_primary:true},
+  {brand_id:"EMR-004", phone:"+234913883000", label:null, is_primary:true},
+  {brand_id:"EMR-005", phone:"+2349136874807", label:null, is_primary:true},
+  {brand_id:"EMR-006", phone:"+2349066299901", label:null, is_primary:true},
+  {brand_id:"EMR-007", phone:"+2348087763938", label:null, is_primary:true},
+  {brand_id:"EMR-008", phone:"+2349169167897", label:null, is_primary:true},
+  {brand_id:"EMR-009", phone:"+2349021669852", label:null, is_primary:true},
+  {brand_id:"EMR-010", phone:"+2348167654000", label:null, is_primary:true},
+  {brand_id:"EMR-010", phone:"+2348187135736", label:null, is_primary:false},
+  {brand_id:"EMR-013", phone:"+2348035095589", label:null, is_primary:true},
+  {brand_id:"EMR-014", phone:"+2348066288525", label:null, is_primary:true},
+  {brand_id:"EMR-014", phone:"+2348066875924", label:null, is_primary:false},
+];
+
+const SEED_DUPLICATE_CANDIDATES = [
+  {brand_id_a:"EXP-012", brand_id_b:"EMR-011", reason:'name_match', detail:"Same normalized name: amalbotanicals"},
+  {brand_id_a:"EXP-031", brand_id_b:"EMR-012", reason:'name_match', detail:"Same normalized name: diosdlite"},
+  {brand_id_a:"ENT-013", brand_id_b:"EXP-027", reason:'phone_match', detail:"Shared phone number: +2348023157522"},
+  {brand_id_a:"ENT-013", brand_id_b:"EXP-052", reason:'phone_match', detail:"Shared phone number: +2348023157522"},
+  {brand_id_a:"ENT-013", brand_id_b:"EXP-065", reason:'phone_match', detail:"Shared phone number: +2348023157522"},
+  {brand_id_a:"ENT-014", brand_id_b:"EXP-071", reason:'phone_match', detail:"Shared phone number: +2348003266455"},
+  {brand_id_a:"ENT-019", brand_id_b:"EXP-006", reason:'phone_match', detail:"Shared phone number: +2348033333333"},
+  {brand_id_a:"ENT-019", brand_id_b:"EXP-055", reason:'phone_match', detail:"Shared phone number: +2348033333333"},
+  {brand_id_a:"ENT-021", brand_id_b:"EXP-025", reason:'phone_match', detail:"Shared phone number: +2348035222045"},
+  {brand_id_a:"EXP-017", brand_id_b:"EXP-062", reason:'phone_match', detail:"Shared phone number: +2349053913000"},
+  {brand_id_a:"EXP-021", brand_id_b:"EXP-066", reason:'phone_match', detail:"Shared phone number: +2347015169936"},
+  {brand_id_a:"EXP-023", brand_id_b:"EXP-064", reason:'phone_match', detail:"Shared phone number: +2348064434220"},
+  {brand_id_a:"EXP-029", brand_id_b:"EXP-060", reason:'phone_match', detail:"Shared phone number: +2348033221314"},
+  {brand_id_a:"EXP-033", brand_id_b:"EXP-070", reason:'phone_match', detail:"Shared phone number: +2348160000000"},
+  {brand_id_a:"EXP-040", brand_id_b:"EXP-059", reason:'phone_match', detail:"Shared phone number: +2348182967667"},
+  {brand_id_a:"EXP-041", brand_id_b:"EXP-067", reason:'phone_match', detail:"Shared phone number: +2348092244222"},
+  {brand_id_a:"EXP-042", brand_id_b:"EXP-063", reason:'phone_match', detail:"Shared phone number: +2348122244433"},
+  {brand_id_a:"EXP-043", brand_id_b:"EXP-053", reason:'phone_match', detail:"Shared phone number: +2348061111111"},
+  {brand_id_a:"EXP-051", brand_id_b:"EXP-090", reason:'phone_match', detail:"Shared phone number: +2348123456789"},
+];
+
 const REPS = ['MW','JZRZ'];
 let prospects = [];
 let callsByRep = {MW:[], JZRZ:[]};
 let queueTabByRep = {MW:'overdue', JZRZ:'overdue'};
+let brands = [];
+let brandPhones = [];
+let duplicateCandidates = [];
 
 /* ---------- Supabase ---------- */
 const SUPABASE_URL = 'https://nkvjyxlpkuiuqgtsmhfz.supabase.co';
@@ -305,7 +732,7 @@ function mapCallRow(c){
   return {
     id: c.id, rep: c.rep, company: c.company, contact: c.contact, phone: c.phone,
     status: c.status, note: c.note, productInfo: c.product_info, supermarkets: c.supermarkets,
-    lastCallDate: c.last_call_date, followUpDate: c.follow_up_date,
+    lastCallDate: c.last_call_date, followUpDate: c.follow_up_date, brandId: c.brand_id, phoneCalled: c.phone_called,
     createdAt: c.created_at ? new Date(c.created_at).getTime() : Date.now()
   };
 }
@@ -319,6 +746,27 @@ async function loadData(){
     ({data: pData} = await sb.from('prospects').select('*').order('created_at'));
   }
   prospects = (pData||[]).map(p=>({id:p.id, company:p.company, category:p.category, phone:p.phone, email:p.email, note:p.note}));
+
+  let {data: bData} = await sb.from('brands').select('*').order('brand_id');
+  if(!bData || bData.length===0){
+    await sb.from('brands').insert(SEED_BRANDS);
+    ({data: bData} = await sb.from('brands').select('*').order('brand_id'));
+  }
+  brands = bData||[];
+
+  let {data: phData} = await sb.from('brand_phones').select('*');
+  if(!phData || phData.length===0){
+    await sb.from('brand_phones').insert(SEED_BRAND_PHONES);
+    ({data: phData} = await sb.from('brand_phones').select('*'));
+  }
+  brandPhones = phData||[];
+
+  let {data: dData} = await sb.from('duplicate_candidates').select('*').order('created_at');
+  if(!dData || dData.length===0){
+    await sb.from('duplicate_candidates').insert(SEED_DUPLICATE_CANDIDATES);
+    ({data: dData} = await sb.from('duplicate_candidates').select('*').order('created_at'));
+  }
+  duplicateCandidates = dData||[];
 
   for(const rep of REPS){
     let {data: cData} = await sb.from('calls').select('*').eq('rep', rep).order('created_at');
@@ -335,6 +783,38 @@ async function loadData(){
   }
 }
 
+/* ---------- Brand Master helpers ---------- */
+function normalizeBrandName(name){
+  let n = (name||'').toLowerCase();
+  n = n.replace(/\([^)]*\)/g, '');
+  n = n.replace(/\b(limited|ltd|plc|nigeria|nig|foods?|industries|industry|company|co|inc|group|integrated|farms?)\b/g, '');
+  n = n.replace(/[^a-z0-9]+/g, '');
+  return n.trim();
+}
+function findBrandByCompanyName(name){
+  const norm = normalizeBrandName(name);
+  if(!norm) return null;
+  return brands.find(b => b.norm_name === norm) || null;
+}
+function phonesForBrand(brandId){
+  return brandPhones.filter(p => p.brand_id === brandId).sort((a,b)=> (b.is_primary?1:0) - (a.is_primary?1:0));
+}
+
+/* ---------- one-time: link already-logged calls to a Brand ID by name match ---------- */
+async function migrateBrandLinks(){
+  for(const rep of REPS){
+    for(const c of callsByRep[rep]){
+      if(!c.brandId){
+        const match = findBrandByCompanyName(c.company);
+        if(match){
+          await sb.from('calls').update({brand_id: match.brand_id}).eq('id', c.id);
+        }
+      }
+    }
+  }
+}
+
+
 /* ---------- live sync across devices ---------- */
 let realtimeReloadTimer = null;
 function scheduleReload(){
@@ -346,6 +826,8 @@ function scheduleReload(){
     if(view==='overview') renderOverview();
     else if(view==='MW' || view==='JZRZ') renderRepDashboard(view);
     else if(view==='contacts') renderContacts();
+    else if(view==='coverage') renderCoverage();
+    else if(view==='review') renderReview();
   }, 400);
 }
 function initRealtime(){
@@ -355,12 +837,56 @@ function initRealtime(){
   sb.channel('prospects-changes')
     .on('postgres_changes', {event:'*', schema:'public', table:'prospects'}, scheduleReload)
     .subscribe();
+  sb.channel('brands-changes')
+    .on('postgres_changes', {event:'*', schema:'public', table:'brands'}, scheduleReload)
+    .subscribe();
+  sb.channel('brand-phones-changes')
+    .on('postgres_changes', {event:'*', schema:'public', table:'brand_phones'}, scheduleReload)
+    .subscribe();
 }
 
 /* ---------- date helpers ---------- */
-function todayStr(){ return new Date().toISOString().slice(0,10); }
-function daysFromToday(n){ const d=new Date(); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+function lagosDateStr(d){ return new Intl.DateTimeFormat('en-CA', {timeZone:'Africa/Lagos', year:'numeric', month:'2-digit', day:'2-digit'}).format(d||new Date()); }
+function todayStr(){ return lagosDateStr(); }
+function daysFromToday(n){
+  const d = new Date(lagosDateStr()+'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate()+n);
+  return d.toISOString().slice(0,10);
+}
 function fmtDate(iso){ if(!iso) return '—'; const d=new Date(iso+'T00:00:00'); return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }
+function lagosWeekRange(offsetWeeks){
+  const d = new Date(lagosDateStr()+'T12:00:00Z');
+  const dow = d.getUTCDay();
+  const diffToMonday = (dow===0 ? -6 : 1-dow);
+  d.setUTCDate(d.getUTCDate() + diffToMonday + (offsetWeeks||0)*7);
+  const start = d.toISOString().slice(0,10);
+  const e = new Date(d); e.setUTCDate(e.getUTCDate()+6);
+  return {start, end: e.toISOString().slice(0,10)};
+}
+
+/* ---------- call-counting distinctions (spec section 8) ---------- */
+function allCallsFlat(){
+  return [...callsByRep.MW.map(c=>({...c})), ...callsByRep.JZRZ.map(c=>({...c}))];
+}
+function inRange(dateStr, start, end){ return dateStr && dateStr>=start && dateStr<=end; }
+function callAttempts(calls, start, end){ return calls.filter(c=>inRange(c.lastCallDate, start, end)).length; }
+function uniqueBrandsCalled(calls, start, end){
+  const keys = new Set();
+  calls.filter(c=>inRange(c.lastCallDate, start, end)).forEach(c=> keys.add(c.brandId || ('name:'+c.company.toLowerCase())));
+  return keys;
+}
+function newBrandsCalled(calls, start, end){
+  const inWindow = uniqueBrandsCalled(calls, start, end);
+  const before = new Set();
+  calls.filter(c=>c.lastCallDate && c.lastCallDate<start).forEach(c=> before.add(c.brandId || ('name:'+c.company.toLowerCase())));
+  return new Set([...inWindow].filter(k=>!before.has(k)));
+}
+function repeatFollowupCalls(calls, start, end){
+  const before = new Set();
+  calls.filter(c=>c.lastCallDate && c.lastCallDate<start).forEach(c=> before.add(c.brandId || ('name:'+c.company.toLowerCase())));
+  return calls.filter(c=> inRange(c.lastCallDate, start, end) && before.has(c.brandId || ('name:'+c.company.toLowerCase())) ).length;
+}
+
 function daysDiff(iso){ const d1=new Date(todayStr()+'T00:00:00'); const d2=new Date(iso+'T00:00:00'); return Math.round((d2-d1)/86400000); }
 function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
@@ -397,6 +923,8 @@ function switchView(view){
   if(view==='overview') renderOverview();
   if(view==='MW' || view==='JZRZ') renderRepDashboard(view);
   if(view==='contacts') renderContacts();
+  if(view==='coverage') renderCoverage();
+  if(view==='review') renderReview();
 }
 
 /* ============================================================
@@ -424,6 +952,7 @@ function repTemplate(rep){
           <div class="tabs">
             <button class="tab-btn active urgent" data-queue="overdue" onclick="setQueueTab('${rep}','overdue')">Overdue</button>
             <button class="tab-btn" data-queue="today" onclick="setQueueTab('${rep}','today')">Due today</button>
+            <button class="tab-btn" data-queue="week" onclick="setQueueTab('${rep}','week')">Due this week</button>
             <button class="tab-btn" data-queue="tomorrow" onclick="setQueueTab('${rep}','tomorrow')">Due tomorrow</button>
             <button class="tab-btn" data-queue="new" onclick="setQueueTab('${rep}','new')">Not yet called</button>
           </div>
@@ -434,13 +963,14 @@ function repTemplate(rep){
           <div class="panel-title"><span class="dot"></span>Log a call — ${rep}</div>
           <form id="${rep}-callForm">
             <div class="field">
-              <label>Company</label>
-              <input list="${rep}-companyList" id="${rep}-fCompany" placeholder="Start typing or pick a prospect" required>
+              <label>Brand / company</label>
+              <input list="${rep}-companyList" id="${rep}-fCompany" placeholder="Search the Brand Master or type a new company" required oninput="onCompanyInput('${rep}')">
               <datalist id="${rep}-companyList"></datalist>
             </div>
+            <div class="field" id="${rep}-brandInfo" style="display:none;"></div>
             <div class="field-row">
               <div class="field"><label>Contact person</label><input id="${rep}-fContact" placeholder="Optional"></div>
-              <div class="field"><label>Phone number</label><input id="${rep}-fPhone" placeholder="e.g. +2348012345678"></div>
+              <div class="field" id="${rep}-phoneFieldWrap"><label>Phone number</label><input id="${rep}-fPhone" placeholder="e.g. +2348012345678"></div>
             </div>
             <div class="field">
               <label>Status</label>
@@ -540,20 +1070,24 @@ function setQueueTab(rep, tab){
 function renderQueue(rep){
   const tab = queueTabByRep[rep];
   const t = todayStr(); const tmrw = daysFromToday(1);
+  const wk = lagosWeekRange(0);
   const latest = latestPerCompany(callsByRep[rep]);
   let list = [];
   if(tab==='overdue') list = latest.filter(c=>c.followUpDate && c.followUpDate<t).sort((a,b)=>a.followUpDate.localeCompare(b.followUpDate));
   else if(tab==='today') list = latest.filter(c=>c.followUpDate===t);
+  else if(tab==='week') list = latest.filter(c=>c.followUpDate && c.followUpDate>=wk.start && c.followUpDate<=wk.end).sort((a,b)=>a.followUpDate.localeCompare(b.followUpDate));
   else if(tab==='tomorrow') list = latest.filter(c=>c.followUpDate===tmrw);
   else if(tab==='new'){
+    const calledBrandIds = new Set(latest.map(c=>c.brandId).filter(Boolean));
     const calledCompanies = new Set(latest.map(c=>c.company.toLowerCase()));
-    list = prospects.filter(p=>!calledCompanies.has(p.company.toLowerCase()));
+    list = brands.filter(b => b.tier==='Enterprise' && !calledBrandIds.has(b.brand_id) && !calledCompanies.has(b.name.toLowerCase()))
+      .map(b=>({company:b.name, category:b.tier+' · '+(b.category||''), phone:(phonesForBrand(b.brand_id)[0]||{}).phone, note:b.latest_note}));
   }
 
   document.getElementById(rep+'-queueCount').textContent = list.length ? `(${list.length})` : '';
   const box = document.getElementById(rep+'-queueList');
   if(list.length===0){
-    const msgs = {overdue:"Nothing overdue. Clean slate.", today:"No follow-ups due today.", tomorrow:"Nothing due tomorrow yet.", new:"Every prospect on the master list has been called at least once."};
+    const msgs = {overdue:"Nothing overdue. Clean slate.", today:"No follow-ups due today.", week:"Nothing due this week yet.", tomorrow:"Nothing due tomorrow yet.", new:"Every Enterprise brand has been called at least once."};
     box.innerHTML = `<div class="empty-note">${msgs[tab]}</div>`;
     return;
   }
@@ -561,6 +1095,7 @@ function renderQueue(rep){
     let cls='', tag='';
     if(tab==='overdue'){ const d=Math.abs(daysDiff(c.followUpDate)); cls='overdue'; tag=`<span class="qi-tag overdue">${d} day${d===1?'':'s'} overdue</span>`; }
     else if(tab==='today'){ cls='today'; tag=`<span class="qi-tag today">Due today</span>`; }
+    else if(tab==='week'){ cls='tomorrow'; tag=`<span class="qi-tag tomorrow">${fmtDate(c.followUpDate)}</span>`; }
     else if(tab==='tomorrow'){ cls='tomorrow'; tag=`<span class="qi-tag tomorrow">Due tomorrow</span>`; }
     else { cls='tomorrow'; tag=`<span class="qi-tag tomorrow">Not yet called</span>`; }
     const phoneRaw = telHref(c.phone);
@@ -583,7 +1118,42 @@ function renderQueue(rep){
 function quickLog(rep, company, phone){
   document.getElementById(rep+'-fCompany').value = company;
   if(phone) document.getElementById(rep+'-fPhone').value = phone;
+  onCompanyInput(rep);
   document.getElementById(rep+'-fCompany').scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+function onCompanyInput(rep){
+  const name = document.getElementById(rep+'-fCompany').value.trim();
+  const brand = findBrandByCompanyName(name);
+  const infoBox = document.getElementById(rep+'-brandInfo');
+  const phoneWrap = document.getElementById(rep+'-phoneFieldWrap');
+
+  if(!brand){
+    infoBox.style.display = 'none';
+    phoneWrap.innerHTML = `<label>Phone number</label><input id="${rep}-fPhone" placeholder="e.g. +2348012345678">`;
+    return;
+  }
+
+  const priorCalls = [...callsByRep.MW, ...callsByRep.JZRZ].filter(c=>c.brandId===brand.brand_id);
+  const lastCall = priorCalls.sort((a,b)=> (b.createdAt||0)-(a.createdAt||0))[0];
+
+  infoBox.style.display = 'block';
+  infoBox.innerHTML = `
+    <div style="background:var(--off-white);border:1px solid var(--gray-100);border-radius:var(--radius);padding:10px 12px;font-size:12.5px;">
+      <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--gray-500);margin-bottom:4px;">
+        ${escapeHtml(brand.tier)} · ${escapeHtml(brand.category||'')}${brand.subcategory?(' / '+escapeHtml(brand.subcategory)):''}
+      </div>
+      ${lastCall ? `<div>Last contacted by <strong>${lastCall.rep}</strong> on ${fmtDate(lastCall.lastCallDate)} — ${escapeHtml(lastCall.status||'no status')}</div>` : `<div>Not called by anyone yet.</div>`}
+      ${brand.latest_note ? `<div style="color:var(--gray-700);margin-top:3px;">${escapeHtml(brand.latest_note)}</div>` : ''}
+    </div>`;
+
+  const phones = phonesForBrand(brand.brand_id);
+  if(phones.length){
+    const options = phones.map(p=>`<option value="${escapeAttr(p.phone)}">${escapeHtml(formatPhoneDisplay(p.phone))}${p.label?(' — '+escapeHtml(p.label)):''}${p.is_primary?' (primary)':''}</option>`).join('');
+    phoneWrap.innerHTML = `<label>Number to call</label><select id="${rep}-fPhone">${options}</select>`;
+  } else {
+    phoneWrap.innerHTML = `<label>Phone number</label><input id="${rep}-fPhone" placeholder="No number on file — add one">`;
+  }
 }
 
 /* ---------- rep history ---------- */
@@ -657,6 +1227,7 @@ function renderPipeline(rep){
 /* ---------- rep company datalist ---------- */
 function renderCompanyList(rep){
   const names = new Set(prospects.map(p=>p.company));
+  brands.forEach(b=>names.add(b.name));
   callsByRep[rep].forEach(c=>names.add(c.company));
   document.getElementById(rep+'-companyList').innerHTML = [...names].map(n=>`<option value="${escapeAttr(n)}">`).join('');
 }
@@ -673,17 +1244,30 @@ async function handleSubmit(e, rep){
   const productInfo = document.getElementById(rep+'-fProduct').value.trim();
   const supermarketsVal = document.getElementById(rep+'-fSupermarkets').value;
   const followUpDate = document.getElementById(rep+'-fFollowUp').value;
+  const brand = findBrandByCompanyName(company);
 
   const {data, error} = await sb.from('calls').insert({
     rep, company, contact: contact||null, phone: phone||null, status: status||null, note: note||null,
     product_info: productInfo||null, supermarkets: supermarketsVal ? Number(supermarketsVal) : null,
-    last_call_date: todayStr(), follow_up_date: followUpDate || null
+    last_call_date: todayStr(), follow_up_date: followUpDate || null,
+    brand_id: brand ? brand.brand_id : null, phone_called: phone||null
   }).select();
 
   if(error){ alert('Could not save this call — check your connection and try again.'); console.error(error); return; }
   if(data && data[0]) callsByRep[rep].push(mapCallRow(data[0]));
 
+  if(brand){
+    await sb.from('brands').update({
+      last_call_date: todayStr(), next_follow_up_date: followUpDate||null,
+      lead_status: status||brand.lead_status, latest_note: note||brand.latest_note,
+      last_updated: new Date().toISOString()
+    }).eq('brand_id', brand.brand_id);
+    const bIdx = brands.findIndex(b=>b.brand_id===brand.brand_id);
+    if(bIdx>-1) brands[bIdx] = {...brands[bIdx], last_call_date: todayStr(), next_follow_up_date: followUpDate||null, lead_status: status||brand.lead_status};
+  }
+
   e.target.reset();
+  document.getElementById(rep+'-brandInfo').style.display = 'none';
   renderRepDashboard(rep);
 }
 
@@ -772,37 +1356,136 @@ function renderOverview(){
    ============================================================ */
 function renderContacts(){
   const search = (document.getElementById('ct-search').value||'').toLowerCase();
-  const rows = prospects.filter(p=>{
+  const tierF = document.getElementById('ct-tierFilter').value;
+  const rows = brands.filter(b=>{
+    if(tierF && b.tier!==tierF) return false;
     if(!search) return true;
-    return (p.company+' '+p.category).toLowerCase().includes(search);
+    return (b.name+' '+(b.category||'')+' '+(b.subcategory||'')).toLowerCase().includes(search);
   });
-  document.getElementById('ct-count').textContent = `(${rows.length})`;
+  document.getElementById('ct-count').textContent = `(${rows.length} of ${brands.length})`;
 
-  const calledByMW = new Set(callsByRep.MW.map(c=>c.company.toLowerCase()));
-  const calledByJZRZ = new Set(callsByRep.JZRZ.map(c=>c.company.toLowerCase()));
+  const calledByMW = new Set(callsByRep.MW.map(c=>c.brandId).filter(Boolean));
+  const calledByJZRZ = new Set(callsByRep.JZRZ.map(c=>c.brandId).filter(Boolean));
 
-  document.getElementById('ct-list').innerHTML = rows.map(p=>{
-    const key = p.company.toLowerCase();
-    const mwYes = calledByMW.has(key);
-    const jzYes = calledByJZRZ.has(key);
-    const phoneRaw = telHref(p.phone);
+  document.getElementById('ct-list').innerHTML = rows.map(b=>{
+    const mwYes = calledByMW.has(b.brand_id);
+    const jzYes = calledByJZRZ.has(b.brand_id);
+    const phones = phonesForBrand(b.brand_id);
+    const phoneChips = phones.map(p=>{
+      const raw = telHref(p.phone);
+      return `<a class="qi-btn call" href="tel:${raw}" title="${escapeAttr(p.label||'')}">${escapeHtml(formatPhoneDisplay(p.phone))}${p.is_primary?' ★':''}</a>`;
+    }).join(' ');
     return `
     <div class="contact-card">
       <div class="cc-top">
         <div>
-          <div class="cc-name">${escapeHtml(p.company)}</div>
-          <div class="cc-meta">${escapeHtml(p.category||'')}${p.phone?(' · '+escapeHtml(formatPhoneDisplay(p.phone))):''}${p.email?(' · '+escapeHtml(p.email)):''}</div>
+          <div class="cc-name">${escapeHtml(b.name)} <span style="font-family:var(--font-mono);font-size:10px;color:var(--gray-500);">${escapeHtml(b.brand_id)}</span></div>
+          <div class="cc-meta">${escapeHtml(b.tier)}${b.category?(' · '+escapeHtml(b.category)):''}${b.subcategory?(' / '+escapeHtml(b.subcategory)):''}${b.primary_email?(' · '+escapeHtml(b.primary_email)):''}</div>
         </div>
         <div class="cc-owner">
           <span class="owner-chip ${mwYes?'yes':'no'}">MW ${mwYes?'✓':'—'}</span>
           <span class="owner-chip ${jzYes?'yes':'no'}">JZRZ ${jzYes?'✓':'—'}</span>
-          ${phoneRaw?`<a class="qi-btn call" href="tel:${phoneRaw}">Call</a>`:''}
         </div>
       </div>
-      ${p.note?`<div class="cc-note">${escapeHtml(p.note)}</div>`:''}
+      ${phoneChips ? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">${phoneChips}</div>` : '<div class="cc-note">No phone number on file.</div>'}
+      ${b.latest_note?`<div class="cc-note">${escapeHtml(b.latest_note)}</div>`:''}
     </div>`;
   }).join('');
 }
+
+/* ---------- weekly coverage dashboard ---------- */
+let coverageWeekOffset = 0;
+function setCoverageWeek(offset){ coverageWeekOffset = offset; renderCoverage(); }
+
+function renderCoverage(){
+  document.getElementById('cov-tab-this').classList.toggle('active', coverageWeekOffset===0);
+  document.getElementById('cov-tab-prev').classList.toggle('active', coverageWeekOffset===-1);
+
+  const wk = lagosWeekRange(coverageWeekOffset);
+  document.getElementById('cov-weekLabel').textContent = `${fmtDate(wk.start)} – ${fmtDate(wk.end)} (Africa/Lagos, Mon–Sun)`;
+
+  const calls = allCallsFlat();
+  const attempts = callAttempts(calls, wk.start, wk.end);
+  const uniqueSet = uniqueBrandsCalled(calls, wk.start, wk.end);
+  const newSet = newBrandsCalled(calls, wk.start, wk.end);
+  const repeatCount = repeatFollowupCalls(calls, wk.start, wk.end);
+  const activeBrands = brands.filter(b=>b.active!==false);
+
+  document.getElementById('cov-attempts').textContent = attempts;
+  document.getElementById('cov-unique').textContent = uniqueSet.size;
+  document.getElementById('cov-new').textContent = newSet.size;
+  document.getElementById('cov-repeat').textContent = repeatCount;
+  document.getElementById('cov-pct').textContent = activeBrands.length ? Math.round(uniqueSet.size/activeBrands.length*100)+'%' : '0%';
+
+  const tiers = ['Enterprise','Expansion','Emerging'];
+  let totalAll=0, uniqueAll=0;
+  const rowsHtml = tiers.map(tier=>{
+    const tierBrands = activeBrands.filter(b=>b.tier===tier);
+    const tierUnique = tierBrands.filter(b=> uniqueSet.has(b.brand_id)).length;
+    const notCalled = tierBrands.length - tierUnique;
+    const pct = tierBrands.length ? Math.round(tierUnique/tierBrands.length*100) : 0;
+    totalAll += tierBrands.length; uniqueAll += tierUnique;
+    return `<tr>
+      <td><strong>${tier}</strong></td>
+      <td>${tierBrands.length}</td>
+      <td><a href="#" onclick="drillDown('${tier}','called');return false;">${tierUnique}</a></td>
+      <td><a href="#" onclick="drillDown('${tier}','not_called');return false;">${notCalled}</a></td>
+      <td>${pct}%</td>
+    </tr>`;
+  }).join('');
+  const totalPct = totalAll ? Math.round(uniqueAll/totalAll*100) : 0;
+  document.getElementById('cov-tierTable').innerHTML = rowsHtml + `
+    <tr style="font-weight:600;background:var(--off-white);">
+      <td>Total</td><td>${totalAll}</td><td>${uniqueAll}</td><td>${totalAll-uniqueAll}</td><td>${totalPct}%</td>
+    </tr>`;
+
+  window._coverageState = {wk, uniqueSet};
+  document.getElementById('cov-drilldown').innerHTML = '';
+
+  const byCaller = REPS.map(rep=>{
+    const repCalls = calls.filter(c=>c.rep===rep);
+    const repAttempts = callAttempts(repCalls, wk.start, wk.end);
+    const repUnique = uniqueBrandsCalled(repCalls, wk.start, wk.end).size;
+    return `<div class="rep-card">
+      <div class="rep-card-head"><div class="rep-card-name">${rep}</div></div>
+      <div class="rep-card-stats">
+        <div class="rep-card-stat"><b>${repAttempts}</b><span>Call attempts</span></div>
+        <div class="rep-card-stat"><b>${repUnique}</b><span>Brands called</span></div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('cov-byCaller').innerHTML = byCaller;
+}
+
+function drillDown(tier, mode){
+  const {uniqueSet} = window._coverageState;
+  const tierBrands = brands.filter(b=>b.tier===tier && b.active!==false);
+  const list = mode==='called' ? tierBrands.filter(b=>uniqueSet.has(b.brand_id)) : tierBrands.filter(b=>!uniqueSet.has(b.brand_id));
+  const title = mode==='called' ? `${tier} brands called this week` : `${tier} brands not called this week`;
+  document.getElementById('cov-drilldown').innerHTML = `
+    <div class="section-note" style="margin-bottom:8px;">${escapeHtml(title)} (${list.length})</div>
+    ${list.map(b=>`<div class="queue-item ${mode==='called'?'today':'overdue'}">
+      <div class="qi-main"><div class="qi-company">${escapeHtml(b.name)}</div><div class="qi-meta">${escapeHtml(b.category||'')}</div></div>
+    </div>`).join('') || '<div class="empty-note">Nothing here.</div>'}`;
+}
+
+/* ---------- duplicate review queue ---------- */
+function renderReview(){
+  document.getElementById('rv-count').textContent = `(${duplicateCandidates.length})`;
+  document.getElementById('rv-list').innerHTML = duplicateCandidates.map(d=>{
+    const a = brands.find(b=>b.brand_id===d.brand_id_a);
+    const b = brands.find(b=>b.brand_id===d.brand_id_b);
+    return `<div class="queue-item overdue">
+      <div class="qi-main">
+        <div class="qi-company">${escapeHtml(a?a.name:d.brand_id_a)} <span style="color:var(--gray-500);">↔</span> ${escapeHtml(b?b.name:d.brand_id_b)}</div>
+        <div class="qi-meta">${escapeHtml(d.reason)} · ${escapeHtml(a?a.brand_id:'')} / ${escapeHtml(b?b.brand_id:'')}</div>
+        <div class="qi-note">${escapeHtml(d.detail||'')}</div>
+      </div>
+      <div class="qi-actions"><span class="qi-tag overdue">Pending review</span></div>
+    </div>`;
+  }).join('') || '<div class="empty-note">No duplicates flagged.</div>';
+}
+
 
 /* ---------- one-time cleanup: fix any numbers already stored without a country code ---------- */
 async function migratePhoneNumbers(){
@@ -829,6 +1512,7 @@ async function migratePhoneNumbers(){
   initRepViews();
   await loadData();
   await migratePhoneNumbers();
+  await migrateBrandLinks();
   await loadData();
   renderOverview();
   initRealtime();
